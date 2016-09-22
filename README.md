@@ -3,12 +3,15 @@
 The gFM toolbox provides the-state-of-the-art solvers for the generalized Factorization Machine (gFM). The gFM toolbox is able to learning gFM model with tens of thousands of dimensions on Terabyte datasets. The gFM toolbox can run on multiple CPUs or GPUs simultaneously. The gFM toolbox is very fast and has provable guarantees in estimation low-rank gFM models. Its learning ability is nearly optimal in theory.
 
 gFM is available at
+
 https://github.com/MingLin-home/gFM
+
 If you find this software useful, please cite our work:
 
 Ming Lin, Jieping Ye. A Non-convex One-Pass Framework for Factorization Machines and Rank-One Matrix Sensing. The Thirtieth Annual Conference on Neural Information Processing Systems (NIPS), 2016.
 
 ===== Bibtex Entry =====
+
 @inproceedings{ming_lin_non-convex_2016,
   title = {A Non-convex One-Pass Framework for Factorization Machines and Rank-One Matrix Sensing}, 
   booktitle = {The Thirtieth Annual Conference on Neural Information Processing Systems (NIPS)},
@@ -26,8 +29,11 @@ Quick Usage
 Assume we have loaded the feature matrix X and the label vector y into memory. Each column of X present one instance and y is a column vector. We want to learn a rank-10 gFM model. To train gFM:
 
 import gFM
+
 k = 10
+
 my_gFM_solver = gFM.BatchSolver(rank_k=k)
+
 my_gFM_solver.fit(X,y)
 
 To predict:
@@ -35,6 +41,7 @@ To predict:
 predicted_label = my_gFM_solver.predict(X)
 
 To get the decision value (regression value):
+
 decision_value = my_gFM_solver.decision_function(X)
 
 API Design
