@@ -18,7 +18,7 @@ Ming Lin, Jieping Ye. A Non-convex One-Pass Framework for Factorization Machines
 
 Installation
 ============
-gFM is a single python library. Copy gFM.py to your project root or directory in your PYTHONPATH environment variables. That¡¯s it!
+gFM is a single python library. Copy gFM.py to your project root or directory in your PYTHONPATH environment variables. That's it!
 
 
 Quick Usage
