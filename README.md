@@ -21,12 +21,12 @@ Ming Lin, Jieping Ye. A Non-convex One-Pass Framework for Factorization Machines
 
 Installation
 ============
-gFM is a single python library. Copy gFM.py to your project root or directory in your PYTHONPATH environment variables. That's it!
+gFM is a single python library. Copy gFM.py to your project root or any directory in your PYTHONPATH environment variable. That's it!
 
 
 Quick Usage
 ===========
-Assume we have loaded the feature matrix X and the label vector y into memory. Each column of X present one instance and y is a column vector. We want to learn a rank-10 gFM model. To train gFM:
+Assume we have loaded the feature matrix X and the label vector y into memory. Each column of X presents one instance and y is a column vector. We want to learn a rank-10 gFM model. To train gFM:
 
 import gFM
 
@@ -47,7 +47,7 @@ decision_value = my_gFM_solver.decision_function(X)
 API Design
 ===========
 
-gFM toolbox implements the algorithm proposed in our NISP 2016 paper. It provides two version of the implementation: a batch version and a mini-batch version. The usage examples are given in the tutorial/ directory. For each version, gFM provides both high-level interface and low-lever interface. The high-level interface provides the standard API as Scipy. For example you call fit(X,y) function to train the model and call predict(X) to get the prediction. The low-level interface provides fine-control of the iteration process. It is useful when you want to check the intermediate results, for example, plotting the convergence curve.
+gFM toolbox implements the algorithm proposed in our NISP 2016 paper. It provides a batch updating implementation and a mini-batch updating implementation. The usage examples are given in the tutorial/ directory. For each updating method, gFM provides both high-level interface and low-lever interface. The high-level interface provides the standard APIs of Scipy. For example you call fit(X,y) function to train the model and call predict(X) to get the prediction. The low-level interface provides fine-control of the iteration process. It is useful when you want to check the intermediate results, for example, plotting the convergence curve.
 
 The batch version is implemented in class BatchSolver. BatchSolver loads all data into memory thus is suitable when you have large enough memory. See tutorial/demo_gFM_BatchSolver_high_level_interface.py for high-level interface usage and tutorial/demo_gFM_BatchSolver_low_level_interface.py for low-level interface usage.
 
