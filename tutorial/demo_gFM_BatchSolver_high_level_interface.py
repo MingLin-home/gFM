@@ -14,7 +14,7 @@ import gFM # import the gFM package
 #---------- Generate Skewed Gaussian distribution as training data ----------#
 d = 100 # feature dimension
 k = 3 # the rank of the target matrix in gFM
-n = 100*k*d # the number of training instances
+n = 30*k*d # the number of training instances
 n_testset = 1000 # the number of testing instances
 
 X = numpy.random.randn(d, n)
@@ -48,7 +48,7 @@ print 'Initializing gFM minibatch ...'
 # Iterate 10 steps in the initialization stage and iterate 20 steps in the training stage.
 # Only rank_k must be specified here.
 my_gFM_solver = gFM.BatchSolver(rank_k=k,
-                                max_iter=20, max_init_iter=10,
+                                max_iter=50, max_init_iter=50,
                                 lambd_M=numpy.linalg.norm(U_true) ** 2 * 2,
                                 lambd_w=numpy.linalg.norm(w_true) * 2, )
 

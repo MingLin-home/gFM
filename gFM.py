@@ -297,7 +297,8 @@ class BatchSolver(object):
     """
     The batch solver for gFM when the whole dataset can be loaded in memory.
     """
-    def __init__(self, rank_k, data_mean = None, data_std = None, data_moment3=None, data_moment4 = None, max_iter=20, max_init_iter = 10, lambd_M=numpy.Inf, lambd_w=numpy.Inf):
+    def __init__(self, rank_k, data_mean=None, data_std=None, data_moment3=None, data_moment4=None, data_moment5=None,
+                 max_iter=20, max_init_iter = 10, lambd_M=numpy.Inf, lambd_w=numpy.Inf,):
         """
         Initialize a gFM_BatchSolver instance.
         :param rank_k: The rank of the target second order matrix in gFM ($M^*$). Should be of type int.
@@ -317,8 +318,11 @@ class BatchSolver(object):
         self.data_std = data_std
         self.data_moment3 = data_moment3
         self.data_moment4 = data_moment4
+        self.data_moment5 = data_moment5
         self.max_iter = max_iter
         self.max_init_iter = max_init_iter
+        self.Z = None
+
         return
 
     def fit(self,X,y):
@@ -362,7 +366,8 @@ class BatchSolver(object):
         """
         numpy.savez_compressed(file,U = self.U, V = self.V, w = self.w,
                                data_mean = self.data_mean, data_std = self.data_std,
-                               data_moment3 = self.data_moment3,data_moment4 = self.data_moment4,
+                               data_moment3 = self.data_moment3,data_moment4 = self.data_moment4,data_moment5=self.data_moment5,
+                               Z = self.Z,G=self.G,
                                max_iter = self.max_iter, max_init_iter = self.max_init_iter)
         return self
 
@@ -380,10 +385,12 @@ class BatchSolver(object):
         self.data_std = the_loaded_file['data_std']
         self.data_moment3 = the_loaded_file['data_moment3']
         self.data_moment4 = the_loaded_file['data_moment4']
+        self.data_moment5 = the_loaded_file['data_moment5']
+        self.Z = the_loaded_file['Z']
+        self.G = the_loaded_file['G']
         self.max_iter = the_loaded_file['max_iter']
         self.max_init_iter = the_loaded_file['max_init_iter']
 
-        self.one_over_phi_1_kappa2 = 1/(self.data_moment4-1-self.data_moment3**2)
 
         return self
     # end def
@@ -412,28 +419,62 @@ class BatchSolver(object):
             self.data_moment3 = numpy.mean(X**3,axis=1,keepdims=True)
         if self.data_moment4 is None:
             self.data_moment4 = numpy.mean(X**4,axis=1,keepdims=True)
+        if self.data_moment5 is None:
+            self.data_moment5 = numpy.mean(X**5,axis=1,keepdims=True)
+
+        tmp_A = numpy.zeros((2,3,self.d))
+        tmp_A[0,0,:] = 1
+        tmp_A[0,1,:] = self.data_moment3.ravel()
+        tmp_A[0,2,:] = self.data_moment4.ravel()
+        tmp_A[1,0,:] = self.data_moment3.ravel()
+        tmp_A[1,1,:] = self.data_moment4.ravel()-1
+        tmp_A[1,2,:] = self.data_moment5.ravel()-self.data_moment3.ravel()
+
+        # tmp_A = numpy.zeros((2, 2, self.d))
+        # tmp_A[0, 0, :] = 1
+        # tmp_A[0, 1, :] = self.data_moment3.ravel()
+        # tmp_A[1, 0, :] = self.data_moment3.ravel()
+        # tmp_A[1, 1, :] = self.data_moment4.ravel() - 1
 
 
-        self.one_over_phi_1_kappa2 = 1/(self.data_moment4-1-self.data_moment3**2)
+        tmp_b = numpy.zeros((2,1,self.d))
+        tmp_b[0,0,:] = self.data_moment3.ravel()
+        tmp_b[1,0,:] = self.data_moment4.ravel()-3
+
+        tmp_bw = numpy.zeros((2,1,self.d))
+        tmp_bw[0,0,:] = 1
+        tmp_bw[1,0,:] = 0
+
+        self.Z = numpy.zeros((self.d,3))
+        self.G = numpy.zeros((self.d, 3))
+        # self.Z = numpy.zeros((self.d, 2))
+        # self.G = numpy.zeros((self.d, 2))
+        for i in xrange(self.d):
+            tmpu_u,tmp_s,tmp_v = numpy.linalg.svd(tmp_A[:, :, i],full_matrices=False)
+            if tmp_s[1]<1e-2:
+                print 'warning! small singular value when computing Z and G!'
+            pinv_tmpA = numpy.linalg.pinv(tmp_A[:,:,i],1e-2)
+            self.G[i,:] = numpy.ravel(pinv_tmpA.dot(tmp_bw[:,:,i]))
+            self.Z[i,:] = numpy.ravel(pinv_tmpA.dot(tmp_b[:,:,i]))
 
         y = numpy.asarray(y,dtype=numpy.float)
 
         U,_ = numpy.linalg.qr( numpy.random.randn(self.d,self.rank_k))
         for t in xrange(max_init_iter/10):
             for i in xrange(10):
-                U = mathcal_M_(y,U,X,self.data_moment3, self.one_over_phi_1_kappa2)/(2*n)
+                U = mathcal_M_(y,U,X,self.data_moment3, self.Z)/(2*n)
             U,_ = numpy.linalg.qr(U)
         # end for t
 
         # V = numpy.zeros((self.d, self.rank_k))
 
         # update V
-        V = mathcal_M_(y,U, X, self.data_moment3, self.one_over_phi_1_kappa2)/(2*n)
+        V = mathcal_M_(y,U, X, self.data_moment3, self.Z)/(2*n)
 
         # update w
         hat_y = A_(X, U, V)
         dy = y - hat_y
-        w = mathcal_W_(dy, X, self.data_moment3, self.data_moment4, self.one_over_phi_1_kappa2)/n
+        w = mathcal_W_(dy, X, self.data_moment3, self.G)/n
 
         self.U = U
         self.V = V
@@ -467,19 +508,19 @@ class BatchSolver(object):
             dy = y-hat_y
 
             # update U
-            U_new = mathcal_M_(dy,U,X, self.data_moment3,self.one_over_phi_1_kappa2)/(2*n) + \
+            U_new = mathcal_M_(dy,U,X, self.data_moment3,self.Z)/(2*n) + \
                 0.5*U.dot(V.T.dot(U))+0.5*V.dot(U.T.dot(U))
             # V_new = U_new
             U_new,_ = numpy.linalg.qr(U_new)
 
             # update V
-            V_new = mathcal_M_(dy,U_new,X, self.data_moment3, self.one_over_phi_1_kappa2)/(2*n) + \
+            V_new = mathcal_M_(dy,U_new,X, self.data_moment3, self.G)/(2*n) + \
                     0.5 * U.dot(V.T.dot(U_new)) + 0.5 * V.dot(U.T.dot(U_new))
 
             # update w
             hat_y = A_(X,U_new,V_new) + X.T.dot(w)
             dy = y-hat_y
-            w_new = mathcal_W_(dy,X, self.data_moment3, self.data_moment4, self.one_over_phi_1_kappa2)/n + w
+            w_new = mathcal_W_(dy,X, self.data_moment3, self.G)/n + w
 
 
             if numpy.linalg.norm(V_new) > self.lambd_M: V_new = V_new / numpy.linalg.norm(V_new)*self.lambd_M
@@ -496,25 +537,36 @@ class BatchSolver(object):
         return self
 # end class
 
-def mathcal_W_(y,X,data_moment3, data_moment4, one_over_phi_1_kappa2):
-    # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> numpy.ndarray
+def mathcal_W_(y,X, data_moment3, G):
+    # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> numpy.ndarray
     """
     Return $\mathcal{W}(y)*n given the constant parameters. X should be zero-mean unit-variance
     """
-    term1 = (data_moment4-1)*one_over_phi_1_kappa2*X.dot(y)
-    term2 = -data_moment3*one_over_phi_1_kappa2*( (X**2).dot(y)-numpy.sum(y) )
-    return term1+term2
+    p0 = numpy.sum(y)
+    p1 = X.dot(y)
+    p2 = (X**2).dot(y)
+    p3 = (X**3).dot(y)
+
+    return G[:,0,numpy.newaxis]*p1 + G[:,1,numpy.newaxis]*(p2-p0) + G[:,2,numpy.newaxis]*( p3 - data_moment3*p0 )
+    # return G[:, 0, numpy.newaxis] * p1 + G[:, 1, numpy.newaxis] * (p2 - p0)
+
 # end def
 
-def mathcal_M_(y,U,X,data_moment3, one_over_phi_1_kappa2):
+def mathcal_M_(y,U,X,data_moment3, Z):
     # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> numpy.ndarray
     """
     Return $\mathcal{M}(y)U*2n, given the constant parameters. X should be zero-mean unit-variance
     """
 
+    p0 = numpy.sum(y)
+    p1 = X.dot(y)
+    p2 = (X**2).dot(y)
+    p3 = (X**3).dot(y)
+
     term1 = (X*y.T).dot(X.T.dot(U))
-    term2 = -numpy.sum(y) - 2*data_moment3*one_over_phi_1_kappa2*(X.dot(y))-(1-2*one_over_phi_1_kappa2)*( (X**2).dot(y)- numpy.sum(y))
-    return term1 + term2*U
+    term2 = p0+ Z[:,0,numpy.newaxis]*p1 + Z[:,1,numpy.newaxis]*(p2-p0) + Z[:,2,numpy.newaxis]*( p3 - data_moment3*p0)
+    # term2 = p0+ Z[:, 0, numpy.newaxis] * p1 + Z[:, 1, numpy.newaxis] * (p2 - p0)
+    return term1 - term2*U
 # end def
 
 def A_(X,U,V):
