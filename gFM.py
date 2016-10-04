@@ -322,6 +322,9 @@ class BatchSolver(object):
         self.max_iter = max_iter
         self.max_init_iter = max_init_iter
         self.Z = None
+        self.G = None
+        self.feature_selection_bool = None
+        self.moment_threshold = 0.1  # don't use features whose Z,G is too singular
 
         return
 
@@ -368,6 +371,7 @@ class BatchSolver(object):
                                data_mean = self.data_mean, data_std = self.data_std,
                                data_moment3 = self.data_moment3,data_moment4 = self.data_moment4,data_moment5=self.data_moment5,
                                Z = self.Z,G=self.G,
+                               feature_selection_bool = self.feature_selection_bool, moment_threshold = self.moment_threshold,
                                max_iter = self.max_iter, max_init_iter = self.max_init_iter)
         return self
 
@@ -388,8 +392,11 @@ class BatchSolver(object):
         self.data_moment5 = the_loaded_file['data_moment5']
         self.Z = the_loaded_file['Z']
         self.G = the_loaded_file['G']
+        self.feature_selection_bool = the_loaded_file['feature_selection_bool']
+        self.moment_threshold = the_loaded_file['moment_threshold']
         self.max_iter = the_loaded_file['max_iter']
         self.max_init_iter = the_loaded_file['max_init_iter']
+
 
 
         return self
@@ -449,11 +456,13 @@ class BatchSolver(object):
         self.G = numpy.zeros((self.d, 3))
         # self.Z = numpy.zeros((self.d, 2))
         # self.G = numpy.zeros((self.d, 2))
+        sv_record = numpy.zeros((self.d,))
         for i in xrange(self.d):
             tmpu_u,tmp_s,tmp_v = numpy.linalg.svd(tmp_A[:, :, i],full_matrices=False)
-            if tmp_s[1]<1e-2:
+            sv_record[i] = tmp_s[1]
+            if tmp_s[1]<0.5:
                 print 'warning! small singular value when computing Z and G!'
-            pinv_tmpA = numpy.linalg.pinv(tmp_A[:,:,i],1e-2)
+            pinv_tmpA = numpy.linalg.pinv(tmp_A[:,:,i],0.5)
             self.G[i,:] = numpy.ravel(pinv_tmpA.dot(tmp_bw[:,:,i]))
             self.Z[i,:] = numpy.ravel(pinv_tmpA.dot(tmp_b[:,:,i]))
 
@@ -470,11 +479,14 @@ class BatchSolver(object):
 
         # update V
         V = mathcal_M_(y,U, X, self.data_moment3, self.Z)/(2*n)
+        if numpy.linalg.norm(V) > self.lambd_M: V = V / numpy.linalg.norm(V) * self.lambd_M
+
 
         # update w
         hat_y = A_(X, U, V)
         dy = y - hat_y
         w = mathcal_W_(dy, X, self.data_moment3, self.G)/n
+        if numpy.linalg.norm(w) > self.lambd_w: w_new = w / numpy.linalg.norm(w) * self.lambd_w
 
         self.U = U
         self.V = V
