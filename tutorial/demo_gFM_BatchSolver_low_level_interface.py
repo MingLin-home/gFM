@@ -15,7 +15,7 @@ import gFM # import the gFM package
 #---------- Generate Skewed Gaussian distribution as training data ----------#
 d = 100 # feature dimension
 k = 3 # the rank of the target matrix in gFM
-n = 100*k*d # the number of training instances
+n = 20*k*d # the number of training instances
 
 
 X = numpy.random.randn(d, n)
@@ -25,14 +25,18 @@ X[X>0.5] = 0
 X_normalized = (X-X.mean(axis=1,keepdims=True))/X.std(axis=1,keepdims=True)
 
 #---------- Synthetic $M^*$ and $w^*$ as our ground-truth gFM model
-U_true = numpy.random.randn(d,k)
-U_true_unit,_ = numpy.linalg.qr(U_true)
-M_true = numpy.dot(U_true,U_true.T)
-M_true = M_true/numpy.linalg.norm(M_true)
-w_true = numpy.random.randn(d,1)
-w_true = w_true/numpy.linalg.norm(w_true)
 
-y = X_normalized.T.dot(w_true) +  gFM.A_(X_normalized,U_true,U_true) # synthetize true labels
+U_true = numpy.random.randn(d,k)
+M_true = numpy.dot(U_true,U_true.T)
+M_true /= numpy.linalg.norm(M_true)
+U,s,V = numpy.linalg.svd(M_true)
+V = s[:,numpy.newaxis] * V
+U_true = U
+V_true = V.T
+w_true = numpy.random.randn(d,1)
+w_true /= numpy.linalg.norm(w_true)
+
+y = X_normalized.T.dot(w_true) +  gFM.A_(X_normalized,U_true,V_true) # synthetize true labels
 
 #---------- Initialize gFM ----------#
 print 'Initializing gFM minibatch ...'
@@ -44,9 +48,9 @@ my_gFM_solver = gFM.BatchSolver(rank_k=k,
                                     lambd_w=numpy.linalg.norm(w_true) * 2, )
 
 # Initialization stage of the gFM. Iterate 10 loops in the initialization stage.
-my_gFM_solver.initialization(X,y,max_init_iter=10)
+my_gFM_solver.initialization(X,y,max_init_iter=200)
 
-T = 20 # The number of iterations in the training stage
+T = 200 # The number of iterations in the training stage
 err_record = numpy.zeros((20,)) # record the estimation error along iteration
 error_record_t = numpy.round(numpy.linspace(0,T,len(err_record))) # we will record the error at step error_record_t[0], error_record_t[1], etc.
 err_record_count = 0

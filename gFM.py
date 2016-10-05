@@ -298,7 +298,7 @@ class BatchSolver(object):
     The batch solver for gFM when the whole dataset can be loaded in memory.
     """
     def __init__(self, rank_k, data_mean=None, data_std=None, data_moment3=None, data_moment4=None, data_moment5=None,
-                 max_iter=20, max_init_iter = 10, lambd_M=numpy.Inf, lambd_w=numpy.Inf,):
+                 max_iter=20, max_init_iter = 10, lambd_M=numpy.Inf, lambd_w=numpy.Inf, learning_rate = 0.001):
         """
         Initialize a gFM_BatchSolver instance.
         :param rank_k: The rank of the target second order matrix in gFM ($M^*$). Should be of type int.
@@ -325,6 +325,7 @@ class BatchSolver(object):
         self.G = None
         self.feature_selection_bool = None
         self.moment_threshold = 0.1  # don't use features whose Z,G is too singular
+        self.learning_Rate = learning_rate
 
         return
 
@@ -460,9 +461,9 @@ class BatchSolver(object):
         for i in xrange(self.d):
             tmpu_u,tmp_s,tmp_v = numpy.linalg.svd(tmp_A[:, :, i],full_matrices=False)
             sv_record[i] = tmp_s[1]
-            if tmp_s[1]<0.5:
-                print 'warning! small singular value when computing Z and G!'
-            pinv_tmpA = numpy.linalg.pinv(tmp_A[:,:,i],0.5)
+            if tmp_s[1]<0.05:
+                print 'warning! small singular value when computing Z and G! sv = %f' %(tmp_s[1])
+            pinv_tmpA = numpy.linalg.pinv(tmp_A[:,:,i],0.05)
             self.G[i,:] = numpy.ravel(pinv_tmpA.dot(tmp_bw[:,:,i]))
             self.Z[i,:] = numpy.ravel(pinv_tmpA.dot(tmp_b[:,:,i]))
 

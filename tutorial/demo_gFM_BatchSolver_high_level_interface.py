@@ -48,7 +48,7 @@ print 'Initializing gFM minibatch ...'
 # Iterate 10 steps in the initialization stage and iterate 20 steps in the training stage.
 # Only rank_k must be specified here.
 my_gFM_solver = gFM.BatchSolver(rank_k=k,
-                                max_iter=50, max_init_iter=50,
+                                max_iter=200, max_init_iter=200,
                                 lambd_M=numpy.linalg.norm(U_true) ** 2 * 2,
                                 lambd_w=numpy.linalg.norm(w_true) * 2, )
 
