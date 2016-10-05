@@ -297,8 +297,8 @@ class BatchSolver(object):
     """
     The batch solver for gFM when the whole dataset can be loaded in memory.
     """
-    def __init__(self, rank_k, data_mean=None, data_std=None, data_moment3=None, data_moment4=None, data_moment5=None,
-                 max_iter=20, max_init_iter = 10, lambd_M=numpy.Inf, lambd_w=numpy.Inf, learning_rate = 0.001):
+    def __init__(self, rank_k=None, data_mean=None, data_std=None, data_moment3=None, data_moment4=None, data_moment5=None,
+                 max_iter=None, max_init_iter=None, lambd_M=numpy.Inf, lambd_w=numpy.Inf, learning_rate=1.0):
         """
         Initialize a gFM_BatchSolver instance.
         :param rank_k: The rank of the target second order matrix in gFM ($M^*$). Should be of type int.
@@ -311,6 +311,7 @@ class BatchSolver(object):
         :param lambd_M: The Frobenius norm constraint for M
         :param lambd_w: The $\ell_2$-norm constraint for w
         """
+        learning_rate = float(learning_rate)
         self.rank_k = rank_k
         self.lambd_M = lambd_M
         self.lambd_w = lambd_w
@@ -320,12 +321,15 @@ class BatchSolver(object):
         self.data_moment4 = data_moment4
         self.data_moment5 = data_moment5
         self.max_iter = max_iter
+        if self.max_iter is None: self.max_iter = int(100/learning_rate)
         self.max_init_iter = max_init_iter
+        if self.max_init_iter is None: self.max_init_iter = int(100/learning_rate)
+
         self.Z = None
         self.G = None
         self.feature_selection_bool = None
-        self.moment_threshold = 0.1  # don't use features whose Z,G is too singular
-        self.learning_Rate = learning_rate
+        self.moment_threshold = 0.5  # don't use features whose Z,G is too singular
+        self.learning_rate = learning_rate
 
         return
 
@@ -368,12 +372,14 @@ class BatchSolver(object):
         :param file: File-like object or string. Save model to the file.
         :return: self
         """
-        numpy.savez_compressed(file,U = self.U, V = self.V, w = self.w,
+        numpy.savez_compressed(file, U = self.U, V = self.V, w = self.w,
                                data_mean = self.data_mean, data_std = self.data_std,
-                               data_moment3 = self.data_moment3,data_moment4 = self.data_moment4,data_moment5=self.data_moment5,
-                               Z = self.Z,G=self.G,
+                               data_moment3 = self.data_moment3, data_moment4 = self.data_moment4, data_moment5=self.data_moment5,
+                               Z = self.Z, G=self.G,
                                feature_selection_bool = self.feature_selection_bool, moment_threshold = self.moment_threshold,
-                               max_iter = self.max_iter, max_init_iter = self.max_init_iter)
+                               max_iter = self.max_iter, max_init_iter = self.max_init_iter, learning_rate=self.learning_rate,
+                               lambda_M=self.lambd_M,lambda_w=self.lambd_w,rank_k=self.rank_k)
+
         return self
 
     def load_model(self,file):
@@ -397,6 +403,10 @@ class BatchSolver(object):
         self.moment_threshold = the_loaded_file['moment_threshold']
         self.max_iter = the_loaded_file['max_iter']
         self.max_init_iter = the_loaded_file['max_init_iter']
+        self.learning_rate = the_loaded_file['learning_rate']
+        self.lambd_M = the_loaded_file['lambda_M']
+        self.lambd_w = the_loaded_file['lambda_w']
+        self.rank_k = the_loaded_file['rank_k']
 
 
 
@@ -470,23 +480,22 @@ class BatchSolver(object):
         y = numpy.asarray(y,dtype=numpy.float)
 
         U,_ = numpy.linalg.qr( numpy.random.randn(self.d,self.rank_k))
-        for t in xrange(max_init_iter/10):
-            for i in xrange(10):
-                U = mathcal_M_(y,U,X,self.data_moment3, self.Z)/(2*n)
+        for t in xrange(max_init_iter):
+            U = mathcal_M_(y,U,X,self.data_moment3, self.Z)/(2*n)
             U,_ = numpy.linalg.qr(U)
         # end for t
 
         # V = numpy.zeros((self.d, self.rank_k))
 
         # update V
-        V = mathcal_M_(y,U, X, self.data_moment3, self.Z)/(2*n)
+        V = mathcal_M_(y,U, X, self.data_moment3, self.Z)/(2*n)*self.learning_rate
         if numpy.linalg.norm(V) > self.lambd_M: V = V / numpy.linalg.norm(V) * self.lambd_M
 
 
         # update w
         hat_y = A_(X, U, V)
         dy = y - hat_y
-        w = mathcal_W_(dy, X, self.data_moment3, self.G)/n
+        w = mathcal_W_(dy, X, self.data_moment3, self.G)/n*self.learning_rate
         if numpy.linalg.norm(w) > self.lambd_w: w_new = w / numpy.linalg.norm(w) * self.lambd_w
 
         self.U = U
@@ -521,19 +530,19 @@ class BatchSolver(object):
             dy = y-hat_y
 
             # update U
-            U_new = mathcal_M_(dy,U,X, self.data_moment3,self.Z)/(2*n) + \
-                0.5*U.dot(V.T.dot(U))+0.5*V.dot(U.T.dot(U))
+            U_new = mathcal_M_(dy,U,X, self.data_moment3,self.Z)/(2*n)*self.learning_rate + \
+                U.dot(V.T.dot(U))/2 + V.dot(U.T.dot(U))/2
             # V_new = U_new
             U_new,_ = numpy.linalg.qr(U_new)
 
             # update V
-            V_new = mathcal_M_(dy,U_new,X, self.data_moment3, self.G)/(2*n) + \
-                    0.5 * U.dot(V.T.dot(U_new)) + 0.5 * V.dot(U.T.dot(U_new))
+            V_new = mathcal_M_(dy,U_new,X, self.data_moment3, self.G)/(2*n)*self.learning_rate + \
+                    U.dot(V.T.dot(U_new))/2 + V.dot(U.T.dot(U_new))/2
 
             # update w
             hat_y = A_(X,U_new,V_new) + X.T.dot(w)
             dy = y-hat_y
-            w_new = mathcal_W_(dy,X, self.data_moment3, self.G)/n + w
+            w_new = mathcal_W_(dy,X, self.data_moment3, self.G)/n*self.learning_rate + w
 
 
             if numpy.linalg.norm(V_new) > self.lambd_M: V_new = V_new / numpy.linalg.norm(V_new)*self.lambd_M
