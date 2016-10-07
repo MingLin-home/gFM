@@ -74,15 +74,15 @@ data_moment4 = numpy.mean(X_normalized**4,axis=1,keepdims=True)
 # The parameters passed to the mini-batch data loading function
 load_data_func_para={'X':X,'y':y,'n':0}
 
-# Create a new gFM model. The model is of rank k. We choose the regularizer lambd_M and lambd_w to be the twice of the norm of ground-truth.
+# Create a new gFM model. The model is of rank rank_k. We choose the regularizer lambda_M and lambda_w to be the twice of the norm of ground-truth.
 # Iterate 10 steps in the initialization stage and iterate 20 steps in the training stage.
 # Only rank_k must be specified here.
-my_gFM_solver = gFM.MiniBatchSolver(k,data_mean,data_std,data_moment3,data_moment4,
-                                        max_iter=20, max_init_iter=10,
-                                       load_data_func = load_data_func, load_data_func_para = load_data_func_para,
-                                       lambd_M=numpy.linalg.norm(U_true) ** 2 * 2,
-                                       lambd_w=numpy.linalg.norm(w_true) * 2,
-                                       )
+my_gFM_solver = gFM.MiniBatchSolver(k, data_mean, data_std, data_moment3, data_moment4,
+                                    max_iter=20, max_init_iter=10,
+                                    load_data_func = load_data_func, load_data_func_para = load_data_func_para,
+                                    lambda_M=numpy.linalg.norm(U_true) ** 2 * 2,
+                                    lambd_w=numpy.linalg.norm(w_true) * 2,
+                                    )
 
 # Train gFM
 print 'Traing gFM mini-batch...'

@@ -11,6 +11,7 @@ For installation and usage information, please refer to README.txt and demonstra
 @contact: linmin@umich.edu
 """
 
+from sklearn.base import BaseEstimator, ClassifierMixin
 import numpy
 
 
@@ -18,7 +19,7 @@ class MiniBatchSolver(object):
     """
     The mini-batch solver for gFM
     """
-    def __init__(self, rank_k, data_mean, data_std, data_moment3, data_moment4, load_data_func,load_data_func_para=None, max_iter=20,max_init_iter=10, lambd_M=numpy.Inf, lambd_w=numpy.Inf, ):
+    def __init__(self, rank_k, data_mean, data_std, data_moment3, data_moment4, load_data_func, load_data_func_para=None, max_iter=20, max_init_iter=10, lambda_M=numpy.Inf, lambd_w=numpy.Inf, ):
         # type: (int, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, object, dict, numpy.ndarray, numpy.ndarray)
         """
         Create a new gFM_MiniBatchSolver object.
@@ -35,12 +36,12 @@ class MiniBatchSolver(object):
         :param max_iter: the number of iterations
         :param max_init_iter: the number of initialization iterations
 
-        :param lambd_M: The Frobenius norm constraint for M
+        :param lambda_M: The Frobenius norm constraint for M
         :param lambd_w: The $\ell_2$-norm constraint for w
         """
-        self.k = rank_k
-        self.lambd_M = lambd_M
-        self.lambd_w = lambd_w
+        self.rank_k = rank_k
+        self.lambda_M = lambda_M
+        self.lambda_w = lambd_w
         self.data_mean = data_mean
         self.data_std = data_std
         self.data_moment3 = data_moment3
@@ -181,12 +182,12 @@ class MiniBatchSolver(object):
         return numpy.sign(self.decision_function(X))
 
     def initialization_begin(self):
-        self.V = numpy.zeros((self.d, self.k))
+        self.V = numpy.zeros((self.d, self.rank_k))
         self.w = numpy.zeros((self.d,1))
-        U, _ = numpy.linalg.qr(numpy.random.randn(self.d, self.k))
+        U, _ = numpy.linalg.qr(numpy.random.randn(self.d, self.rank_k))
         self.U = U
         self.n = 0
-        self.mathcal_M_cache = numpy.zeros((self.d, self.k))
+        self.mathcal_M_cache = numpy.zeros((self.d, self.rank_k))
         self.mathcal_W_cache = numpy.zeros((self.d,1))
         self.U_n = 0
         self.V_n = 0
@@ -196,7 +197,7 @@ class MiniBatchSolver(object):
 
     def initialization_update_one_epoch(self):
         U_new,_ = numpy.linalg.qr(self.mathcal_M_cache/(2*self.n))
-        self.mathcal_M_cache = numpy.zeros((self.d,self.k))
+        self.mathcal_M_cache = numpy.zeros((self.d,self.rank_k))
         self.U_new = U_new
         self.U = U_new
         self.n = 0
@@ -216,7 +217,7 @@ class MiniBatchSolver(object):
         self.w = self.w_new
 
     def iteration_begin(self):
-        self.mathcal_M_cache = numpy.zeros((self.d, self.k))
+        self.mathcal_M_cache = numpy.zeros((self.d, self.rank_k))
         self.mathcal_W_cache = numpy.zeros((self.d,1))
         self.U_n = 0
         self.V_n = 0
@@ -245,7 +246,7 @@ class MiniBatchSolver(object):
 
     def iteration_update_w_one_epoch(self):
         w_new = self.mathcal_W_cache/self.w_n + self.w
-        if numpy.linalg.norm(w_new) > self.lambd_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambd_w
+        if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
         self.w_new = w_new
 
         self.w_n = 0
@@ -260,7 +261,7 @@ class MiniBatchSolver(object):
         self.U_new = U_new
 
         self.U_n = 0
-        self.mathcal_M_cache = numpy.zeros((self.d, self.k))
+        self.mathcal_M_cache = numpy.zeros((self.d, self.rank_k))
         return self
     # end def
 
@@ -278,11 +279,11 @@ class MiniBatchSolver(object):
 
     def iteration_update_V_one_epoch(self):
         V_new = self.mathcal_M_cache/(2*self.V_n) +  0.5*self.U.dot(self.V.T.dot(self.U_new))+0.5*self.V.dot(self.U.T.dot(self.U_new))
-        if numpy.linalg.norm(V_new) > self.lambd_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambd_M
+        if numpy.linalg.norm(V_new) > self.lambda_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambda_M
         self.V_new = V_new
 
         self.V_n = 0
-        self.mathcal_M_cache = numpy.zeros((self.d, self.k))
+        self.mathcal_M_cache = numpy.zeros((self.d, self.rank_k))
         return self
     # end def
 
@@ -293,12 +294,13 @@ class MiniBatchSolver(object):
 
 # end class
 
-class BatchSolver(object):
+
+class BatchSolver(BaseEstimator, ClassifierMixin):
     """
     The batch solver for gFM when the whole dataset can be loaded in memory.
     """
     def __init__(self, rank_k=None, data_mean=None, data_std=None, data_moment3=None, data_moment4=None, data_moment5=None,
-                 max_iter=None, max_init_iter=None, lambd_M=numpy.Inf, lambd_w=numpy.Inf, learning_rate=1.0):
+                 max_iter=None, max_init_iter=None, lambda_M=numpy.Inf, lambda_w=numpy.Inf, learning_rate=1.0):
         """
         Initialize a gFM_BatchSolver instance.
         :param rank_k: The rank of the target second order matrix in gFM ($M^*$). Should be of type int.
@@ -308,13 +310,13 @@ class BatchSolver(object):
         :param data_moment4: The 4th order moment of the data. $d\times 1$ vector.
         :param max_iter: The number of iterations for training.
         :param max_init_iter: The number of iterations in initialization step.
-        :param lambd_M: The Frobenius norm constraint for M
-        :param lambd_w: The $\ell_2$-norm constraint for w
+        :param lambda_M: The Frobenius norm constraint for M
+        :param lambda_w: The $\ell_2$-norm constraint for w
         """
         learning_rate = float(learning_rate)
         self.rank_k = rank_k
-        self.lambd_M = lambd_M
-        self.lambd_w = lambd_w
+        self.lambda_M = lambda_M
+        self.lambda_w = lambda_w
         self.data_mean = data_mean
         self.data_std = data_std
         self.data_moment3 = data_moment3
@@ -325,22 +327,25 @@ class BatchSolver(object):
         self.max_init_iter = max_init_iter
         if self.max_init_iter is None: self.max_init_iter = int(100/learning_rate)
 
-        self.Z = None
-        self.G = None
-        self.feature_selection_bool = None
-        self.moment_threshold = 0.5  # don't use features whose Z,G is too singular
         self.learning_rate = learning_rate
 
         return
 
-    def fit(self,X,y):
+    def fit(self,X,y=None):
         # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> object
         """
         Train gFM with data X and label y.
-        :param X: Feature matrix, $d \times n$.
-        :param y: Label vector, $n times 1$.
+        :param X: Feature matrix, $n \times d$.
+        :param y: Label vector, shape=(n,)
         :return: self
         """
+        X = X.T
+        self.Z = None
+        self.G = None
+        self.feature_selection_bool = None
+        self.moment_threshold = 0.5  # don't use features whose Z,G is too singular
+
+        y = y[:,numpy.newaxis]
         self.initialization(X, y, max_init_iter=self.max_init_iter)
         self.iterate_train(X, y, self.max_iter)
         return self
@@ -349,21 +354,23 @@ class BatchSolver(object):
         # type: (numpy.ndarray) -> numpy.ndarray
         """
         Compute the decision values $s$ of X such that $\sign{s}$ is the predicted labels of X
-        :param X: $d \times n$ feature matrix.
+        :param X: $n \times d$.
         :return: The decision values of X, $n \times 1$ vector
         """
+        X = X.T
         X = (X - self.data_mean) / self.data_std
         the_decision_values = A_(X,self.U,self.V) + X.T.dot(self.w)
-        return the_decision_values
+        return the_decision_values.flatten()
 
     def predict(self,X):
         # type: (numpy.ndarray) -> numpy.ndarray
         """
         Predict the labels of X
-        :param X: $d \times n$ feature matrix.
+        :param X: $n \times d$ feature matrix.
         :return: The predicted labels
         """
-        return numpy.sign(self.decision_function(X))
+        X = X.T
+        return numpy.sign(self.decision_function(X)).flatten()
 
     def save_model(self,file):
         # type: (str) -> object
@@ -378,7 +385,7 @@ class BatchSolver(object):
                                Z = self.Z, G=self.G,
                                feature_selection_bool = self.feature_selection_bool, moment_threshold = self.moment_threshold,
                                max_iter = self.max_iter, max_init_iter = self.max_init_iter, learning_rate=self.learning_rate,
-                               lambda_M=self.lambd_M,lambda_w=self.lambd_w,rank_k=self.rank_k)
+                               lambda_M=self.lambda_M, lambda_w=self.lambda_w, rank_k=self.rank_k)
 
         return self
 
@@ -404,8 +411,8 @@ class BatchSolver(object):
         self.max_iter = the_loaded_file['max_iter']
         self.max_init_iter = the_loaded_file['max_init_iter']
         self.learning_rate = the_loaded_file['learning_rate']
-        self.lambd_M = the_loaded_file['lambda_M']
-        self.lambd_w = the_loaded_file['lambda_w']
+        self.lambda_M = the_loaded_file['lambda_M']
+        self.lambda_w = the_loaded_file['lambda_w']
         self.rank_k = the_loaded_file['rank_k']
 
 
@@ -418,8 +425,8 @@ class BatchSolver(object):
         # type: (numpy.ndarray, numpy.ndarray, int) -> numpy.ndarray
         """
         Use trancated SVD to initialize U0,V0. Batch updating.
-        :param X: feature matrix, $d \times n$
-        :param y: label vector, $n times 1$
+        :param X: feature matrix, $n\times d$
+        :param y: label vector, shape=(n,)
         :param max_init_iter: the number of iterations for initialization. max_iter=10 is usually good enough
         :return: None
         """
@@ -489,14 +496,14 @@ class BatchSolver(object):
 
         # update V
         V = mathcal_M_(y,U, X, self.data_moment3, self.Z)/(2*n)*self.learning_rate
-        if numpy.linalg.norm(V) > self.lambd_M: V = V / numpy.linalg.norm(V) * self.lambd_M
+        if numpy.linalg.norm(V) > self.lambda_M: V = V / numpy.linalg.norm(V) * self.lambda_M
 
 
         # update w
         hat_y = A_(X, U, V)
         dy = y - hat_y
         w = mathcal_W_(dy, X, self.data_moment3, self.G)/n*self.learning_rate
-        if numpy.linalg.norm(w) > self.lambd_w: w_new = w / numpy.linalg.norm(w) * self.lambd_w
+        if numpy.linalg.norm(w) > self.lambda_w: w_new = w / numpy.linalg.norm(w) * self.lambda_w
 
         self.U = U
         self.V = V
@@ -545,8 +552,8 @@ class BatchSolver(object):
             w_new = mathcal_W_(dy,X, self.data_moment3, self.G)/n*self.learning_rate + w
 
 
-            if numpy.linalg.norm(V_new) > self.lambd_M: V_new = V_new / numpy.linalg.norm(V_new)*self.lambd_M
-            if numpy.linalg.norm(w_new) > self.lambd_w: w_new = w_new / numpy.linalg.norm(w_new)*self.lambd_w
+            if numpy.linalg.norm(V_new) > self.lambda_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambda_M
+            if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
             # update old with new variances
             U = U_new
             V = V_new

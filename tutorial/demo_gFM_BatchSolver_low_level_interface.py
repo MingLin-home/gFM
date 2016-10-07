@@ -41,11 +41,11 @@ y = X_normalized.T.dot(w_true) +  gFM.A_(X_normalized,U_true,V_true) # synthetiz
 #---------- Initialize gFM ----------#
 print 'Initializing gFM minibatch ...'
 
-# Create a new gFM model. The model is of rank k. We choose the regularizer lambd_M and lambd_w to be the twice of the norm of ground-truth.
+# Create a new gFM model. The model is of rank rank_k. We choose the regularizer lambda_M and lambda_w to be the twice of the norm of ground-truth.
 # Only rank_k must be specified here.
 my_gFM_solver = gFM.BatchSolver(rank_k=k,
-                                    lambd_M=numpy.linalg.norm(U_true) ** 2 * 2,
-                                    lambd_w=numpy.linalg.norm(w_true) * 2, )
+                                lambda_M=numpy.linalg.norm(U_true) ** 2 * 2,
+                                lambda_w=numpy.linalg.norm(w_true) * 2, )
 
 # Initialization stage of the gFM. Iterate 10 loops in the initialization stage.
 my_gFM_solver.initialization(X,y,max_init_iter=200)
