@@ -82,7 +82,7 @@ class MiniBatchSolver(object):
         self.U = the_loaded_file['U']
         self.V = the_loaded_file['V']
         self.w = the_loaded_file['w']
-        self.data_mean = the_loaded_file['data_mean']
+        self.data_mean = the_loaded_file['data_mean_step1']
         self.data_std = the_loaded_file['data_std']
         self.data_moment3 = the_loaded_file['data_moment3']
         self.data_moment4 = the_loaded_file['data_moment4']
@@ -303,7 +303,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         """
         Initialize a gFM_BatchSolver instance.
         :param rank_k: The rank of the target second order matrix in gFM ($M^*$). Should be of type int.
-        :param data_mean: The mean of the data. $d\times 1$ vector.
+        :param data_mean_step1: The mean of the data. $d\times 1$ vector.
         :param data_std: The std of the data. $d\times 1$ vector.
         :param data_moment3: The 3rd order moment of the data. $d\times 1$ vector.
         :param data_moment4: The 4th order moment of the data. $d\times 1$ vector.
@@ -401,7 +401,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         self.U = the_loaded_file['U']
         self.V = the_loaded_file['V']
         self.w = the_loaded_file['w']
-        self.data_mean = the_loaded_file['data_mean']
+        self.data_mean = the_loaded_file['data_mean_step1']
         self.data_std = the_loaded_file['data_std']
         self.data_moment3 = the_loaded_file['data_moment3']
         self.data_moment4 = the_loaded_file['data_moment4']
