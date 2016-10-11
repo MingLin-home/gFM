@@ -10,7 +10,7 @@ For installation and usage information, please refer to README.txt and demonstra
 @author: Ming Lin
 @contact: linmin@umich.edu
 """
-
+import sklearn.decomposition
 from sklearn.base import BaseEstimator, ClassifierMixin
 import numpy
 
@@ -299,8 +299,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
     """
     The batch solver for gFM when the whole dataset can be loaded in memory.
     """
-    def __init__(self, rank_k=None, data_mean=None, data_std=None, data_moment3=None, data_moment4=None, data_moment5=None,
-                 max_iter=None, max_init_iter=None, lambda_M=numpy.Inf, lambda_w=numpy.Inf, learning_rate=1.0):
+    def __init__(self, rank_k=None, max_iter=None, max_init_iter=None, lambda_M=numpy.Inf, lambda_w=numpy.Inf, learning_rate=1.0,):
         """
         Initialize a gFM_BatchSolver instance.
         :param rank_k: The rank of the target second order matrix in gFM ($M^*$). Should be of type int.
@@ -317,11 +316,6 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         self.rank_k = rank_k
         self.lambda_M = lambda_M
         self.lambda_w = lambda_w
-        self.data_mean = data_mean
-        self.data_std = data_std
-        self.data_moment3 = data_moment3
-        self.data_moment4 = data_moment4
-        self.data_moment5 = data_moment5
         self.max_iter = max_iter
         if self.max_iter is None: self.max_iter = int(100/learning_rate)
         self.max_init_iter = max_init_iter
@@ -329,9 +323,15 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
 
         self.learning_rate = learning_rate
 
+        self.data_mean = None
+        self.data_std = None
+        self.data_moment3 = None
+        self.data_moment4 = None
+        self.data_moment5 = None
+
         return
 
-    def fit(self,X,y=None):
+    def fit(self,X,y=None, sample_weight=None):
         # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> object
         """
         Train gFM with data X and label y.
@@ -339,15 +339,17 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         :param y: Label vector, shape=(n,)
         :return: self
         """
-        X = X.T
+        if sample_weight is None:
+            sample_weight = numpy.ones((X.shape[0],))
+            sample_weight = sample_weight/numpy.sum(sample_weight)
+
         self.Z = None
         self.G = None
         self.feature_selection_bool = None
-        self.moment_threshold = 0.5  # don't use features whose Z,G is too singular
+        self.moment_threshold = 0.05  # don't use features whose Z,G is too singular
 
-        y = y[:,numpy.newaxis]
-        self.initialization(X, y, max_init_iter=self.max_init_iter)
-        self.iterate_train(X, y, self.max_iter)
+        self.initialization(X, y, sample_weight=sample_weight, max_init_iter=self.max_init_iter)
+        self.iterate_train(X, y, sample_weight=sample_weight, max_iter=self.max_iter)
         return self
 
     def decision_function(self,X):
@@ -421,7 +423,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
     # end def
 
 
-    def initialization(self, X, y, max_init_iter=10):
+    def initialization(self, X, y, sample_weight=None, max_init_iter=10):
         # type: (numpy.ndarray, numpy.ndarray, int) -> numpy.ndarray
         """
         Use trancated SVD to initialize U0,V0. Batch updating.
@@ -430,22 +432,28 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         :param max_init_iter: the number of iterations for initialization. max_iter=10 is usually good enough
         :return: None
         """
+        X = X.T
+        y =y[:,numpy.newaxis]
+        y = numpy.asarray(y,dtype=numpy.float)
 
         self.d = X.shape[0]
         n = X.shape[1]
 
-        if self.data_mean is None:
-            self.data_mean = X.mean(axis=1,keepdims=True)
-            X = X - self.data_mean
-        if self.data_std is None:
-            self.data_std = numpy.maximum(X.std(axis=1,keepdims=True),1e-12)
-            X = X/self.data_std
-        if self.data_moment3 is None:
-            self.data_moment3 = numpy.mean(X**3,axis=1,keepdims=True)
-        if self.data_moment4 is None:
-            self.data_moment4 = numpy.mean(X**4,axis=1,keepdims=True)
-        if self.data_moment5 is None:
-            self.data_moment5 = numpy.mean(X**5,axis=1,keepdims=True)
+        # z-score normalization considering sample weight
+        if sample_weight is None:
+            sample_weight = numpy.ones((X.shape[0],))
+            sample_weight = sample_weight/numpy.sum(sample_weight)
+        sample_weight = sample_weight[:,numpy.newaxis]
+
+        X_times_sample_weight = X*sample_weight
+        self.data_mean = X_times_sample_weight.mean(axis=1,keepdims=True)
+        X = X - self.data_mean
+        X_weighted_std = numpy.mean((X**2)*sample_weight,axis=1,keepdims=True)
+        self.data_std = numpy.maximum(X_weighted_std,1e-12)
+        X = X/self.data_std
+        self.data_moment3 = numpy.mean((X**3)*sample_weight,axis=1,keepdims=True)
+        self.data_moment4 = numpy.mean((X**4)*sample_weight,axis=1,keepdims=True)
+        self.data_moment5 = numpy.mean((X**5)*sample_weight,axis=1,keepdims=True)
 
         tmp_A = numpy.zeros((2,3,self.d))
         tmp_A[0,0,:] = 1
@@ -484,24 +492,24 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
             self.G[i,:] = numpy.ravel(pinv_tmpA.dot(tmp_bw[:,:,i]))
             self.Z[i,:] = numpy.ravel(pinv_tmpA.dot(tmp_b[:,:,i]))
 
-        y = numpy.asarray(y,dtype=numpy.float)
 
         U,_ = numpy.linalg.qr( numpy.random.randn(self.d,self.rank_k))
         for t in xrange(max_init_iter):
-            U = mathcal_M_(y,U,X,self.data_moment3, self.Z)/(2*n)
+            U = mathcal_M_(y*sample_weight,U,X,self.data_moment3, self.Z)/(2*n)
             U,_ = numpy.linalg.qr(U)
         # end for t
 
         # V = numpy.zeros((self.d, self.rank_k))
 
         # update V
-        V = mathcal_M_(y,U, X, self.data_moment3, self.Z)/(2*n)*self.learning_rate
+        V = mathcal_M_(y*sample_weight,U, X, self.data_moment3, self.Z)/(2*n)*self.learning_rate
         if numpy.linalg.norm(V) > self.lambda_M: V = V / numpy.linalg.norm(V) * self.lambda_M
 
 
         # update w
         hat_y = A_(X, U, V)
         dy = y - hat_y
+        dy = dy*sample_weight
         w = mathcal_W_(dy, X, self.data_moment3, self.G)/n*self.learning_rate
         if numpy.linalg.norm(w) > self.lambda_w: w_new = w / numpy.linalg.norm(w) * self.lambda_w
 
@@ -514,20 +522,27 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
 
 
 
-    def iterate_train(self, X, y, max_iter=1, z_score_normalized=False):
+    def iterate_train(self, X, y, sample_weight=None, max_iter=1, z_score_normalized=False):
         # type: (numpy.ndaray, numpy.ndaray, int) -> numpy.ndaray
         """
         Update U,V,w using batch iteration.
-        :param X: feature matrix, $d \times n$ matrix
-        :param y: label vector, $n \times 1$
+        :param X: feature matrix, $n \times d$ matrix
+        :param y: label vector, shape=(n,)
         :param max_iter: number of iterations
         :param z_score_normalized: If True, it means that the dataset X has been z-score normalized already. If not (default), the solver will z-score normalized it.
         """
         U = self.U
         V = self.V
         w = self.w
+        X = X.T
         n = X.shape[1]
         y = numpy.asarray(y,dtype=numpy.float)
+        y = y[:,numpy.newaxis]
+
+        if sample_weight is None:
+            sample_weight = numpy.ones((X.shape[0],))
+            sample_weight = sample_weight / numpy.sum(sample_weight)
+        sample_weight = sample_weight[:, numpy.newaxis]
 
         if z_score_normalized == False:
             X = (X-self.data_mean)/self.data_std
@@ -535,6 +550,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         for t in xrange(max_iter):
             hat_y = A_(X,U,V) + X.T.dot(w)
             dy = y-hat_y
+            dy = dy*sample_weight
 
             # update U
             U_new = mathcal_M_(dy,U,X, self.data_moment3,self.Z)/(2*n)*self.learning_rate + \
@@ -549,6 +565,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
             # update w
             hat_y = A_(X,U_new,V_new) + X.T.dot(w)
             dy = y-hat_y
+            dy = dy*sample_weight
             w_new = mathcal_W_(dy,X, self.data_moment3, self.G)/n*self.learning_rate + w
 
 
@@ -565,6 +582,9 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         self.w = w
         return self
 # end class
+
+
+
 
 def mathcal_W_(y,X, data_moment3, G):
     # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> numpy.ndarray
