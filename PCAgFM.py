@@ -20,6 +20,9 @@ class PCAgFM(BaseEstimator, ClassifierMixin):
             sample_weight = sample_weight/numpy.sum(sample_weight)
         sample_weight = sample_weight[:,numpy.newaxis]
 
+        self.classes_ = numpy.unique(y)
+        self.n_classes_ = len(self.classes_)
+
         X = X.T
         y = y[:, numpy.newaxis]
         y = numpy.asarray(y, dtype=numpy.float)
@@ -28,28 +31,28 @@ class PCAgFM(BaseEstimator, ClassifierMixin):
         n = X.shape[1]
 
         # weighted z-score normalization
-        X_times_sample_weight = X * sample_weight
+        X_times_sample_weight = n * X * sample_weight.T
         self.data_mean_1 = X_times_sample_weight.mean(axis=1, keepdims=True)
         X = X - self.data_mean_1
-        X_weighted_std = numpy.mean((X ** 2) * sample_weight, axis=1, keepdims=True)
+        X_weighted_std = numpy.sqrt(n * numpy.mean((X ** 2) * sample_weight.T, axis=1, keepdims=True))
         self.data_std_1 = numpy.maximum(X_weighted_std, 1e-12)
-        X = X / self.data_std
+        X = X / self.data_std_1
 
         # weighted PCA
-        X_times_sample_weight = X * sample_weight
+        X_times_sample_weight = n * X * sample_weight.T
         U, s, V = numpy.linalg.svd(X_times_sample_weight)
-        X = U[:, 0:self.n_components].T.dot(X_times_sample_weight)
+        X = U[:, 0:self.n_components].T.dot(X)
         self.U = U[:, 0:self.n_components]
 
         # weighted z-score normalization of PCA features
-        X_times_sample_weight = X * sample_weight
+        X_times_sample_weight = n * X * sample_weight.T
         self.data_mean_2 = X_times_sample_weight.mean(axis=1, keepdims=True)
         X = X - self.data_mean_2
-        X_weighted_std = numpy.mean((X ** 2) * sample_weight, axis=1, keepdims=True)
+        X_weighted_std = numpy.sqrt(n * numpy.mean((X ** 2) * sample_weight.T, axis=1, keepdims=True))
         self.data_std_2 = numpy.maximum(X_weighted_std, 1e-12)
         X = X / self.data_std_2
 
-        self.gFM_estimator.fit(X.T, y.flatten(), sample_weight=sample_weight)
+        self.gFM_estimator.fit(X.T, y.flatten(), sample_weight=sample_weight.flatten())
 
     pass
 
