@@ -441,19 +441,19 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
 
         # z-score normalization considering sample weight
         if sample_weight is None:
-            sample_weight = numpy.ones((X.shape[0],))
+            sample_weight = numpy.ones((n,))
             sample_weight = sample_weight/numpy.sum(sample_weight)
         sample_weight = sample_weight[:,numpy.newaxis]
 
-        X_times_sample_weight = X*sample_weight
+        X_times_sample_weight = n * X*sample_weight.T
         self.data_mean = X_times_sample_weight.mean(axis=1,keepdims=True)
         X = X - self.data_mean
-        X_weighted_std = numpy.mean((X**2)*sample_weight,axis=1,keepdims=True)
+        X_weighted_std = numpy.sqrt(n * numpy.mean((X**2)*sample_weight.T,axis=1,keepdims=True))
         self.data_std = numpy.maximum(X_weighted_std,1e-12)
         X = X/self.data_std
-        self.data_moment3 = numpy.mean((X**3)*sample_weight,axis=1,keepdims=True)
-        self.data_moment4 = numpy.mean((X**4)*sample_weight,axis=1,keepdims=True)
-        self.data_moment5 = numpy.mean((X**5)*sample_weight,axis=1,keepdims=True)
+        self.data_moment3 = numpy.mean(n*(X**3)*sample_weight.T,axis=1,keepdims=True)
+        self.data_moment4 = numpy.mean(n*(X**4)*sample_weight.T,axis=1,keepdims=True)
+        self.data_moment5 = numpy.mean(n*(X**5)*sample_weight.T,axis=1,keepdims=True)
 
         tmp_A = numpy.zeros((2,3,self.d))
         tmp_A[0,0,:] = 1
@@ -495,21 +495,21 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
 
         U,_ = numpy.linalg.qr( numpy.random.randn(self.d,self.rank_k))
         for t in xrange(max_init_iter):
-            U = mathcal_M_(y*sample_weight,U,X,self.data_moment3, self.Z)/(2*n)
+            U = mathcal_M_(n*y*sample_weight,U,X,self.data_moment3, self.Z)/(2*n)
             U,_ = numpy.linalg.qr(U)
         # end for t
 
         # V = numpy.zeros((self.d, self.rank_k))
 
         # update V
-        V = mathcal_M_(y*sample_weight,U, X, self.data_moment3, self.Z)/(2*n)*self.learning_rate
+        V = mathcal_M_(n*y*sample_weight,U, X, self.data_moment3, self.Z)/(2*n)*self.learning_rate
         if numpy.linalg.norm(V) > self.lambda_M: V = V / numpy.linalg.norm(V) * self.lambda_M
 
 
         # update w
         hat_y = A_(X, U, V)
         dy = y - hat_y
-        dy = dy*sample_weight
+        dy = n*dy*sample_weight
         w = mathcal_W_(dy, X, self.data_moment3, self.G)/n*self.learning_rate
         if numpy.linalg.norm(w) > self.lambda_w: w_new = w / numpy.linalg.norm(w) * self.lambda_w
 
@@ -540,7 +540,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         y = y[:,numpy.newaxis]
 
         if sample_weight is None:
-            sample_weight = numpy.ones((X.shape[0],))
+            sample_weight = numpy.ones((n,))
             sample_weight = sample_weight / numpy.sum(sample_weight)
         sample_weight = sample_weight[:, numpy.newaxis]
 
@@ -550,7 +550,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         for t in xrange(max_iter):
             hat_y = A_(X,U,V) + X.T.dot(w)
             dy = y-hat_y
-            dy = dy*sample_weight
+            dy = n*dy*sample_weight
 
             # update U
             U_new = mathcal_M_(dy,U,X, self.data_moment3,self.Z)/(2*n)*self.learning_rate + \
@@ -565,7 +565,7 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
             # update w
             hat_y = A_(X,U_new,V_new) + X.T.dot(w)
             dy = y-hat_y
-            dy = dy*sample_weight
+            dy = n*dy*sample_weight
             w_new = mathcal_W_(dy,X, self.data_moment3, self.G)/n*self.learning_rate + w
 
 
