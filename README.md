@@ -1,4 +1,4 @@
-# gFM: A toolbox for generalized Factorization Machine with Terabyte Data #
+# gFM: A toolbox for generalized Factorization Machine on Terabyte Data #
 
 The gFM toolbox provides the-state-of-the-art solvers for the generalized Factorization Machine (gFM). The gFM toolbox is able to learning gFM model with tens of thousands of dimensions on Terabyte datasets. The gFM toolbox can run on multiple CPUs or GPUs simultaneously. The gFM toolbox is very fast and has provable guarantees. Its learning ability is nearly optimal in theory.
 
