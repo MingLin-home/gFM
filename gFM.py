@@ -371,7 +371,6 @@ class BatchSolver(BaseEstimator, ClassifierMixin):
         :param X: $n \times d$ feature matrix.
         :return: The predicted labels
         """
-        X = X.T
         return numpy.sign(self.decision_function(X)).flatten()
 
     def save_model(self,file):
