@@ -1,6 +1,6 @@
 # gFM: A toolbox for generalized Factorization Machine on Terabyte Data #
 
-The gFM toolbox provides the-state-of-the-art solvers for the generalized Factorization Machine (gFM). The gFM toolbox is able to learning gFM model with tens of thousands of dimensions on Terabyte datasets. The gFM toolbox can run on multiple CPUs or GPUs simultaneously. The gFM toolbox is very fast and has provable guarantees. Its learning ability is nearly optimal in theory.
+The gFM toolbox provides the-state-of-the-art solvers for the generalized Factorization Machine (gFM). The gFM toolbox is able to learning gFM model with tens of thousands of dimensions on Terabyte datasets. The gFM toolbox can run on multiple CPUs or GPUs simultaneously. The gFM toolbox is very fast and has provable guarantees. gFM is compatible to sklearn API.
 
 gFM is available at
 
@@ -8,7 +8,7 @@ https://github.com/MingLin-home/gFM
 
 If you find this software useful, please cite our work:
 
-Ming Lin, Jieping Ye. A Non-convex One-Pass Framework for Factorization Machines and Rank-One Matrix Sensing. The Thirtieth Annual Conference on Neural Information Processing Systems (NIPS), 2016.
+Ming Lin, Jieping Ye. A Non-convex One-Pass Framework for Generalized Factorization Machine and Rank-One Matrix Sensing. The Thirtieth Annual Conference on Neural Information Processing Systems (NIPS), 2016.
 
 ===== Bibtex Entry =====
 
@@ -44,6 +44,8 @@ To get the decision value (regression value):
 
 decision_value = my_gFM_solver.decision_function(X)
 
+To save/load mode, call my_gFM_solver.save_mode(your_model_filename) and my_gFM_solver.load_model(your_model_file_name).
+
 API Design
 ===========
 
@@ -51,4 +53,4 @@ gFM toolbox implements the algorithm proposed in our NISP 2016 paper. It provide
 
 The batch version is implemented in class BatchSolver. BatchSolver loads all data into memory thus is suitable when you have large enough memory. See tutorial/demo_gFM_BatchSolver_high_level_interface.py for high-level interface usage and tutorial/demo_gFM_BatchSolver_low_level_interface.py for low-level interface usage.
 
-The mini-batch version is implemented in class MiniBatchSolver. It allows loading partial dataset in one mini-batch epoch. However the efficiency is traded for the memory constraint in this case. See tutorial/demo_gFM_MiniBatchSolver_high_level_interface.py for high-level interface usage and tutorial/demo_gFM_MiniBatchSolver_low_level_interface.py  for low-level interface usage.
+The mini-batch version and GPU version is on the way!
