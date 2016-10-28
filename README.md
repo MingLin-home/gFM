@@ -19,6 +19,15 @@ Ming Lin, Jieping Ye. A Non-convex One-Pass Framework for Generalized Factorizat
   year = {2016}
 }
 
+
+Why another Factorization Machine library?
+============
+
+There are libfm and several python wrappers such as pywFM, pyFM or fastFM. However, the algorithms implemented in these packages might converge to local minima or saddle point.  Numerical experiments suggest that with very high probability these algorithms cannot converge to the global optimal solution.
+
+The algorithm implemented in gFM is provably convergent to global optimal solution. The convergence rate is linear (geometrical). In addition, gFM implements a generalized version of Factorization Machine. The second order feature interaction coefficient matrix in gFM doesn't need to be semi-positive definite therefore is more powerful than conventional Factorization Machine.
+
+
 Installation
 ============
 gFM is a single python library. Copy gFM.py to your project root or any directory in your PYTHONPATH environment variable. That's it!
@@ -32,25 +41,20 @@ import gFM
 
 k = 10
 
-my_gFM_solver = gFM.BatchSolver(rank_k=k)
+my_gFM_solver = gFM.BatchRegression(rank_k=k)
 
 my_gFM_solver.fit(X,y)
 
 To predict:
 
-predicted_label = my_gFM_solver.predict(X)
+predicted_regression_value = my_gFM_solver.predict(X)
 
-To get the decision value (regression value):
+You can use gFM with sklearn modules such GridSearch and Cross-validation.
 
-decision_value = my_gFM_solver.decision_function(X)
-
-To save/load mode, call my_gFM_solver.save_mode(your_model_filename) and my_gFM_solver.load_model(your_model_file_name).
 
 API Design
 ===========
 
-gFM toolbox implements the algorithm proposed in our NISP 2016 paper. It provides a batch updating implementation and a mini-batch updating implementation. The usage examples are given in the tutorial/ directory. For each updating method, gFM provides both high-level interface and low-lever interface. The high-level interface provides the standard APIs of Scipy. For example you call fit(X,y) function to train the model and call predict(X) to get the prediction. The low-level interface provides fine-control of the iteration process. It is useful when you want to check the intermediate results, for example, plotting the convergence curve.
-
-The batch version is implemented in class BatchSolver. BatchSolver loads all data into memory thus is suitable when you have large enough memory. See tutorial/demo_gFM_BatchSolver_high_level_interface.py for high-level interface usage and tutorial/demo_gFM_BatchSolver_low_level_interface.py for low-level interface usage.
+gFM toolbox implements the algorithm proposed in our NISP 2016 paper. It provides a batch updating implementation and a mini-batch updating implementation. The usage examples are given in the tutorial/ directory. Also check the docstring in gFM.py for advanced usage.
 
 The mini-batch version and GPU version is on the way!
