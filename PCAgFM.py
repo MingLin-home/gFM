@@ -60,7 +60,7 @@ class AdaptivePCAgFM(BaseEstimator, ClassifierMixin):
             self.data_std_2 = numpy.maximum(X_weighted_std, 1e-12)
             X = X / self.data_std_2
 
-            self.gFM_estimator = gFM.BatchSolver(rank_k=gFM_rank_k, lambda_M=lambda_M,lambda_w=lambda_w,learning_rate=self.learning_rate)
+            self.gFM_estimator = gFM.BatchRegression(rank_k=gFM_rank_k, lambda_M=lambda_M, lambda_w=lambda_w, learning_rate=self.learning_rate)
 
             self.gFM_estimator.fit(X.T, y.flatten(), sample_weight=sample_weight.flatten())
 
