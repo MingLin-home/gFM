@@ -89,12 +89,15 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             tmp_A[1, 0, :] = self.data_moment3.ravel()
             tmp_A[1, 1, :] = self.data_moment4.ravel() - 1
             tmp_A[1, 2, :] = self.data_moment5.ravel() - self.data_moment3.ravel()
+
             tmp_b = numpy.zeros((2, 1, self.d))
             tmp_b[0, 0, :] = self.data_moment3.ravel()
             tmp_b[1, 0, :] = self.data_moment4.ravel() - 3
+
             tmp_bw = numpy.zeros((2, 1, self.d))
             tmp_bw[0, 0, :] = 1
             tmp_bw[1, 0, :] = 0
+
             self.Z = numpy.zeros((self.d, 3))
             self.G = numpy.zeros((self.d, 3))
             sv_record = numpy.zeros((self.d,))
@@ -106,10 +109,12 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 pinv_tmpA = numpy.linalg.pinv(tmp_A[:, :, i], 0.05)
                 self.G[i, :] = numpy.ravel(pinv_tmpA.dot(tmp_bw[:, :, i]))
                 self.Z[i, :] = numpy.ravel(pinv_tmpA.dot(tmp_b[:, :, i]))
+
             U, _ = numpy.linalg.qr(numpy.random.randn(self.d, self.rank_k))
             self.U = U
             self.V = numpy.zeros(U.shape)
             self.w = numpy.zeros((self.d,))
+            self.b = 0
         # end if
 
         if X_is_zscore_normalized == False and X_new is None:
@@ -143,15 +148,19 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             # update V
             V = mathcal_M_(n * y * sample_weight, self.U, X, self.data_moment3, self.Z) / (2 * n) * self.learning_rate
             if numpy.linalg.norm(V) > self.lambda_M: V = V / numpy.linalg.norm(V) * self.lambda_M
+            self.V = V
 
-            # update w
+            # update w and b
             hat_y = A_(X, self.U, V)
             dy = y - hat_y
             dy = n * dy * sample_weight
             w = mathcal_W_(dy, X, self.data_moment3, self.G) / n * self.learning_rate
             if numpy.linalg.norm(w) > self.lambda_w: w_new = w / numpy.linalg.norm(w) * self.lambda_w
-            self.V = V
             self.w = w
+            b = numpy.mean(y) - numpy.sum(self.U*self.V)
+            self.b = b
+
+
 
             if self.remaining_init_iter_steps_ <= 0:
                 self.is_init_stage_ = False
@@ -168,11 +177,12 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             U = self.U
             V = self.V
             w = self.w
+            b = self.b
 
             for t in xrange(the_num_iter):
                 self.remaining_train_iter_steps_ -= 1
 
-                hat_y = A_(X, U, V) + X.T.dot(w)
+                hat_y = A_(X, U, V) + X.T.dot(w) + b
                 dy = y - hat_y
                 dy = n * dy * sample_weight
 
@@ -185,20 +195,22 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 # update V
                 V_new = mathcal_M_(dy, U_new, X, self.data_moment3, self.G) / (2 * n) * self.learning_rate + \
                         U.dot(V.T.dot(U_new)) / 2 + V.dot(U.T.dot(U_new)) / 2
+                if numpy.linalg.norm(V_new) > self.lambda_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambda_M
 
-                # update w
+                # update w and b
                 hat_y = A_(X, U_new, V_new) + X.T.dot(w)
                 dy = y - hat_y
                 dy = n * dy * sample_weight
                 w_new = mathcal_W_(dy, X, self.data_moment3, self.G) / n * self.learning_rate + w
-
-                if numpy.linalg.norm(V_new) > self.lambda_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambda_M
                 if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
 
-                if numpy.mean(numpy.abs(U-U_new))<self.tol and numpy.mean(numpy.abs(V-V_new))<self.tol and numpy.mean(numpy.abs(w-w_new))<self.tol:
+                b_new = numpy.mean(y) - numpy.sum(U_new * V_new)
+
+                if numpy.mean(numpy.abs(U-U_new))<self.tol and numpy.mean(numpy.abs(V-V_new))<self.tol and numpy.mean(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
                     U = U_new
                     V = V_new
                     w = w_new
+                    b = b_new
                     break
                 # end if ... < tol
 
@@ -206,11 +218,13 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 U = U_new
                 V = V_new
                 w = w_new
+                b = b_new
             # end for t
 
             self.U = U
             self.V = V
             self.w = w
+            self.b = b
         # end if not self.is_init_stage_:
         return self
     # end def
@@ -224,7 +238,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
         """
         X = X.T
         X = (X - self.data_mean) / self.data_std
-        the_decision_values = A_(X,self.U,self.V) + X.T.dot(self.w)
+        the_decision_values = A_(X,self.U,self.V) + X.T.dot(self.w) + self.b
         return the_decision_values.flatten()
 
     def predict(self,X):

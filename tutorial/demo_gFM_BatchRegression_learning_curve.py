@@ -17,12 +17,12 @@ sys.path.append('../')
 import gFM
 
 
-repeat_times = 10 # repeat experiments
+repeat_times = 1 # repeat experiments
 dim = 100 # the dimension of features
 rank_k = 3 # the rank of gFM
-total_iteration = 20 # number of iterations to train gFM
+total_iteration = 60 # number of iterations to train gFM
 total_record = 20 # number of check points
-max_init_iter = 10 # number of iterations to initialize gFM
+max_init_iter = 20 # number of iterations to initialize gFM
 
 # We save the recovery error, training set prection error and testing set prediction error along iteration
 recovery_error_record = numpy.zeros((repeat_times, total_record))
@@ -40,7 +40,7 @@ def train(export_filename):
     """
     for repeat_count in xrange(repeat_times):
         print 'generating training toy set'
-        n_trainset = 30 * rank_k * dim # size of training set
+        n_trainset = 100 * rank_k * dim # size of training set
         n_testset = 10000 # size of testing set
 
         X = numpy.random.randn(n_trainset, dim) # training set instances
@@ -52,11 +52,11 @@ def train(export_filename):
         M_true = U_true.dot(U_true.T)
 
         # generate true labels for training
-        y = X.dot(w_true) + gFM.A_(X.T, U_true, U_true)
+        y = X.dot(w_true) + gFM.A_(X.T, U_true, U_true) + 0.5
         y = y.flatten()
 
         # generate true labels for testing
-        y_test = X_test.dot(w_true) + gFM.A_(X_test.T, U_true, U_true)
+        y_test = X_test.dot(w_true) + gFM.A_(X_test.T, U_true, U_true) + 0.5
         y_test = y_test.flatten()
 
         # Initialize gFM BatchRegression. We set max_init_iter=20 steps in the initialization with accuracy init_tol=1e-3.

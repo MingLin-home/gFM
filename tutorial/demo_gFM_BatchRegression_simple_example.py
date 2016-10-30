@@ -35,11 +35,11 @@ w_true = numpy.random.randn(dim, 1) / numpy.sqrt(dim)
 M_true = U_true.dot(U_true.T)
 
 # generate true labels for training
-y = X.dot(w_true) + gFM.A_(X.T, U_true, U_true)
+y = X.dot(w_true) + gFM.A_(X.T, U_true, U_true) + 0.5
 y = y.flatten()
 
 # generate true labels for testing
-y_test = X_test.dot(w_true) + gFM.A_(X_test.T, U_true, U_true)
+y_test = X_test.dot(w_true) + gFM.A_(X_test.T, U_true, U_true) +0.5
 y_test = y_test.flatten()
 
 # Initialize gFM BatchRegression. We set max_init_iter=max_init_iter steps in the initialization with accuracy init_tol=1e-3.
