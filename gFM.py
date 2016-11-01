@@ -20,7 +20,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
     """
     The batch solver for gFM when the whole dataset can be loaded in memory.
     """
-    def __init__(self, rank_k=None, max_iter=None, tol=1e-6, max_init_iter=None, init_tol=None, lambda_M=numpy.Inf, lambda_w=numpy.Inf, learning_rate=1.0,solver_algorithm='state-of-the-art'):
+    def __init__(self, rank_k=None, max_iter=None, tol=1e-6, max_init_iter=None, init_tol=None, lambda_M=numpy.Inf, lambda_w=numpy.Inf, learning_rate=1.0,solver_algorithm='state-of-the-art', using_cache=True):
         """
         Initialize a gFM_BatchSolver instance.
         :param rank_k: The rank of the target second order matrix in gFM ($M^*$). Should be of type int.
@@ -44,6 +44,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
         self.init_tol = init_tol
         if self.init_tol is None: self.init_tol = self.tol
         self.solver_algorithm=solver_algorithm
+        self.using_cache = using_cache
         return
 
     def fit(self,X,y=None, sample_weight=None, n_more_iter=None, X_is_zscore_normalized = False):
@@ -81,14 +82,29 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             X_weighted_std = numpy.sqrt(n * numpy.mean((X_new ** 2) * sample_weight.T, axis=1, keepdims=True))
             self.data_std = numpy.maximum(X_weighted_std, 1e-12)
             X_new /= self.data_std
+            if self.using_cache:
+                self.cached_Xp2_ = X_new ** 2
+                self.cached_Xp3_ = self.cached_Xp2_ * X
+                self.cached_Xp4_ = self.cached_Xp3_ * X
+                self.cached_Xp5_ = self.cached_Xp4_ * X
+            # end if self.using_cache
+
+            print 'gFM using solver %s' %(self.solver_algorithm)
             if self.solver_algorithm == 'NIPS2016':
                 self.data_moment3 = numpy.zeros(self.data_mean.shape)
                 self.data_moment4 = numpy.zeros(self.data_mean.shape)
                 self.data_moment5 = numpy.zeros(self.data_mean.shape)
             else:
-                self.data_moment3 = numpy.mean(n * (X ** 3) * sample_weight.T, axis=1, keepdims=True)
-                self.data_moment4 = numpy.mean(n * (X ** 4) * sample_weight.T, axis=1, keepdims=True)
-                self.data_moment5 = numpy.mean(n * (X ** 5) * sample_weight.T, axis=1, keepdims=True)
+                if self.using_cache:
+                    self.data_moment3 = numpy.mean(n * (self.cached_Xp3_) * sample_weight.T, axis=1, keepdims=True)
+                    self.data_moment4 = numpy.mean(n * (self.cached_Xp4_) * sample_weight.T, axis=1, keepdims=True)
+                    self.data_moment5 = numpy.mean(n * (self.cached_Xp5_) * sample_weight.T, axis=1, keepdims=True)
+                else:
+                    self.data_moment3 = numpy.mean(n * (X_new**3) * sample_weight.T, axis=1, keepdims=True)
+                    self.data_moment4 = numpy.mean(n * (X_new**4) * sample_weight.T, axis=1, keepdims=True)
+                    self.data_moment5 = numpy.mean(n * (X_new**5) * sample_weight.T, axis=1, keepdims=True)
+                # end if self.using_cache
+            # end if self.solver_algorithm == 'NIPS2016':
             tmp_A = numpy.zeros((2, 3, self.d))
             tmp_A[0, 0, :] = 1
             tmp_A[0, 1, :] = self.data_moment3.ravel()
@@ -132,9 +148,12 @@ class BatchRegression(BaseEstimator, RegressorMixin):
         if self.remaining_train_iter_steps_ < 0: self.remaining_train_iter_steps_ = 0
         if self.remaining_init_iter_steps_ < 0: self.remaining_init_iter_steps_ = 0
 
-
-        Xp2 = X**2
-        Xp3 = Xp2*X
+        if self.using_cache:
+            Xp2 = self.cached_Xp2_
+            Xp3 = self.cached_Xp3_
+        else:
+            Xp2 = X**2
+            Xp3 = Xp2*X
 
         p0 = numpy.sum(y)
         p1 = X.dot(y)

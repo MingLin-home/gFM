@@ -1,6 +1,6 @@
-# gFM: A toolbox for generalized Factorization Machine with Terabyte Data #
+# gFM: A toolbox for generalized Factorization Machine on Terabyte Data #
 
-The gFM toolbox provides the-state-of-the-art solvers for the generalized Factorization Machine (gFM). The gFM toolbox is able to learning gFM model with tens of thousands of dimensions on Terabyte datasets. The gFM toolbox can run on multiple CPUs or GPUs simultaneously. The gFM toolbox is very fast and has provable guarantees.
+The gFM toolbox provides the-state-of-the-art solvers for the generalized Factorization Machine (gFM). The gFM toolbox is able to learning gFM model with tens of thousands of dimensions on Terabyte datasets. The gFM toolbox can run on multiple CPUs or GPUs simultaneously. The gFM toolbox is very fast and has provable guarantees. gFM is compatible to sklearn API.
 
 gFM is available at
 
@@ -13,11 +13,20 @@ Ming Lin, Jieping Ye. A Non-convex One-Pass Framework for Generalized Factorizat
 ===== Bibtex Entry =====
 
 @inproceedings{ming_lin_non-convex_2016,
-  title = {A Non-convex One-Pass Framework for Factorization Machine and Rank-One Matrix Sensing}, 
+  title = {A Non-convex One-Pass Framework for Factorization Machines and Rank-One Matrix Sensing}, 
   booktitle = {The Thirtieth Annual Conference on Neural Information Processing Systems (NIPS)},
   author = {{Ming Lin} and {Jieping Ye}},
   year = {2016}
 }
+
+
+Why another Factorization Machine library?
+============
+
+There are libfm and several python wrappers such as pywFM, pyFM or fastFM. However, the algorithms implemented in these packages might converge to local minima or saddle point.  Numerical experiments suggest that with very high probability these algorithms cannot converge to the global optimal solution.
+
+The algorithm implemented in gFM is provably convergent to global optimal solution. The convergence rate is linear (geometrical). In addition, gFM implements a generalized version of Factorization Machine. The second order feature interaction coefficient matrix in gFM doesn't need to be semi-positive definite therefore is more powerful than conventional Factorization Machine.
+
 
 Installation
 ============
@@ -32,31 +41,20 @@ import gFM
 
 k = 10
 
-my_gFM_solver = gFM.BatchSolver(rank_k=k)
+my_gFM_solver = gFM.BatchRegression(rank_k=k)
 
 my_gFM_solver.fit(X,y)
 
 To predict:
 
-predicted_label = my_gFM_solver.predict(X)
+predicted_regression_value = my_gFM_solver.predict(X)
 
-To get the decision value (regression value):
+You can use gFM with sklearn modules such GridSearch and Cross-validation.
 
-decision_value = my_gFM_solver.decision_function(X)
-
-To save and load model:
-
-export_model_filename = 'my_gFM_model.npz'
-my_gFM_solver.save_model(export_model_filename)
-my_gFM_solver.load_model(export_model_filename)
-
-gFM is compatible to sklearn API. Please check the "tutorial/" folder for more examples.
 
 API Design
 ===========
 
-gFM toolbox implements the algorithm proposed in our NISP 2016 paper. It provides a batch updating implementation and a mini-batch updating implementation. The usage examples are given in "tutorial/" folder. For each updating method, gFM provides both high-level interface and low-level interface. The high-level interface provides the standard APIs defined by sklearn. For example you call fit(X,y) function to train the model and call predict(X) to get the prediction. The low-level interface provides fine-control of the iteration process. It is useful when you want to check the intermediate results, for example, plotting the convergence curve.
+gFM toolbox implements the algorithm proposed in our NISP 2016 paper. It provides a batch updating implementation and a mini-batch updating implementation. The usage examples are given in the tutorial/ directory. Also check the docstring in gFM.py for advanced usage.
 
-The batch version is implemented in class BatchSolver. BatchSolver loads all data into memory thus is suitable when you have large enough memory. See tutorial/demo_gFM_BatchSolver_high_level_interface.py for high-level interface usage and tutorial/demo_gFM_BatchSolver_low_level_interface.py for low-level interface usage.
-
-The mini-batch and the GPU version are still under active development.
+The mini-batch version and GPU version is on the way!
