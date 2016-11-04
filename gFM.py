@@ -20,7 +20,9 @@ class BatchRegression(BaseEstimator, RegressorMixin):
     """
     The batch solver for gFM when the whole dataset can be loaded in memory.
     """
-    def __init__(self, rank_k=None, max_iter=None, tol=1e-6, max_init_iter=None, init_tol=None, lambda_M=numpy.Inf, lambda_w=numpy.Inf, learning_rate=1.0,solver_algorithm='state-of-the-art', using_cache=True):
+    def __init__(self, rank_k=None, max_iter=None, tol=1e-6, max_init_iter=None, init_tol=None,
+                 lambda_M=numpy.Inf, lambda_w=numpy.Inf, learning_rate=1.0,solver_algorithm='state-of-the-art', using_cache=True,
+                 learn_bias_term=True,learn_w=True):
         """
         Initialize a gFM_BatchSolver instance.
         :param rank_k: The rank of the target second order matrix in gFM ($M^*$). Should be of type int.
@@ -45,6 +47,8 @@ class BatchRegression(BaseEstimator, RegressorMixin):
         if self.init_tol is None: self.init_tol = self.tol
         self.solver_algorithm=solver_algorithm
         self.using_cache = using_cache
+        self.learn_bias_term = learn_bias_term
+        self.learn_w = learn_w
         return
 
     def fit(self,X,y=None, sample_weight=None, n_more_iter=None, X_is_zscore_normalized = False):
@@ -77,11 +81,21 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             self.remaining_train_iter_steps_ = self.max_iter
             self.d = X.shape[0]
             X_times_sample_weight = n * X * sample_weight.T
-            self.data_mean = X_times_sample_weight.mean(axis=1, keepdims=True)
-            X_new = X - self.data_mean
+
+            if not X_is_zscore_normalized:
+                self.data_mean = X_times_sample_weight.mean(axis=1, keepdims=True)
+                X_new = X - self.data_mean
+            else:
+                self.data_mean = numpy.zeros((X.shape[0],1))
+                X_new = X
             X_weighted_std = numpy.sqrt(n * numpy.mean((X_new ** 2) * sample_weight.T, axis=1, keepdims=True))
-            self.data_std = numpy.maximum(X_weighted_std, 1e-12)
-            X_new /= self.data_std
+
+            if not X_is_zscore_normalized:
+                self.data_std = numpy.maximum(X_weighted_std, 1e-12)
+                X_new /= self.data_std
+            else:
+                self.data_std = numpy.ones((X.shape[0],1))
+
             if self.using_cache:
                 self.cached_Xp2_ = X_new ** 2
                 self.cached_Xp3_ = self.cached_Xp2_ * X
@@ -92,7 +106,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             print 'gFM using solver %s' %(self.solver_algorithm)
             if self.solver_algorithm == 'NIPS2016':
                 self.data_moment3 = numpy.zeros(self.data_mean.shape)
-                self.data_moment4 = numpy.zeros(self.data_mean.shape)
+                self.data_moment4 = numpy.zeros(self.data_mean.shape) + 3
                 self.data_moment5 = numpy.zeros(self.data_mean.shape)
             else:
                 if self.using_cache:
@@ -136,7 +150,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             U, _ = numpy.linalg.qr(numpy.random.randn(self.d, self.rank_k))
             self.U = U
             self.V = numpy.zeros(U.shape)
-            self.w = numpy.zeros((self.d,))
+            self.w = numpy.zeros((self.d,1))
             self.b = 0
         # end if
 
@@ -170,10 +184,11 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             for t in xrange(the_num_iter):
                 ite_count += 1
                 U_new = mathcal_M_(n * y * sample_weight, self.U, X, self.data_moment3, self.Z,p0,p1,p2,p3) / (2 * n)
-                U_new,_ = numpy.linalg.qr(self.U)
+                U_new,_ = numpy.linalg.qr(U_new)
                 if numpy.mean(numpy.abs(self.U-U_new)) < self.init_tol:
                     self.is_init_stage_ = False
                     self.U = U_new
+                    print 'early stop in initialzation'
                     break
                 # end if numpy.mean(numpy.abs(self.U-U_new)) < self.init_tol:
                 self.U = U_new
@@ -192,9 +207,11 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             dy = n * dy * sample_weight
             w = mathcal_W_(dy, X, self.data_moment3, self.G,p0,p1,p2,p3) / n * self.learning_rate
             if numpy.linalg.norm(w) > self.lambda_w: w_new = w / numpy.linalg.norm(w) * self.lambda_w
-            self.w = w
-            b = numpy.mean(y) - numpy.sum(self.U*self.V)
-            self.b = b
+            if self.learn_w:
+                self.w = w
+            if self.learn_bias_term:
+                b = numpy.mean(y) - numpy.sum(self.U*self.V)
+                self.b = b
 
 
 
@@ -254,16 +271,21 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 if numpy.mean(numpy.abs(U-U_new))<self.tol and numpy.mean(numpy.abs(V-V_new))<self.tol and numpy.mean(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
                     U = U_new
                     V = V_new
-                    w = w_new
-                    b = b_new
+                    if self.learn_w:
+                        w = w_new
+                    if self.learn_bias_term:
+                        b = b_new
+                    print 'early stop'
                     break
                 # end if ... < tol
 
                 # update old with new variances
                 U = U_new
                 V = V_new
-                w = w_new
-                b = b_new
+                if self.learn_w:
+                    w = w_new
+                if self.learn_bias_term:
+                    b = b_new
             # end for t
 
             self.U = U
