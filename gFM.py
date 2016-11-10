@@ -98,9 +98,9 @@ class BatchRegression(BaseEstimator, RegressorMixin):
 
             if self.using_cache:
                 self.cached_Xp2_ = X_new ** 2
-                self.cached_Xp3_ = self.cached_Xp2_ * X
-                self.cached_Xp4_ = self.cached_Xp3_ * X
-                self.cached_Xp5_ = self.cached_Xp4_ * X
+                self.cached_Xp3_ = self.cached_Xp2_ * X_new
+                self.cached_Xp4_ = self.cached_Xp3_ * X_new
+                self.cached_Xp5_ = self.cached_Xp4_ * X_new
             # end if self.using_cache
 
             print 'gFM using solver %s' %(self.solver_algorithm)
@@ -143,7 +143,9 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 sv_record[i] = tmp_s[1]
                 if tmp_s[1] < 0.05:
                     print 'warning! small singular value when computing Z and G! sv = %f' % (tmp_s[1])
-                pinv_tmpA = numpy.linalg.pinv(tmp_A[:, :, i], 0.05)
+            sv_threshold = numpy.max(sv_record)*1e-3
+            for i in xrange(self.d):
+                pinv_tmpA = numpy.linalg.pinv(tmp_A[:, :, i], sv_threshold)
                 self.G[i, :] = numpy.ravel(pinv_tmpA.dot(tmp_bw[:, :, i]))
                 self.Z[i, :] = numpy.ravel(pinv_tmpA.dot(tmp_b[:, :, i]))
 
@@ -216,6 +218,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
 
 
             if self.remaining_init_iter_steps_ <= 0:
+                print 'stop initialzation'
                 self.is_init_stage_ = False
             # end if self.remaining_init_iter_steps_ <= 0:
 
