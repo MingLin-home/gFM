@@ -52,7 +52,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
         self.diag_zero = diag_zero
         return
 
-    def fit_diag_not_zero(self,X,y=None, sample_weight=None, n_more_iter=None, X_is_zscore_normalized = False):
+    def fit(self,X,y=None, sample_weight=None, n_more_iter=None, X_is_zscore_normalized = False):
         # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> object
         """
         Train gFM with data X and label y.
@@ -114,21 +114,18 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             else:
                 self.data_std = numpy.ones((X.shape[0],1))
 
+            Xp2 = X_new ** 2
+            Xp3 = Xp2 * X_new
+            Xp4 = Xp3 * X_new
             if self.using_cache:
-                self.cached_Xp2_ = X_new ** 2
-                self.cached_Xp3_ = self.cached_Xp2_ * X_new
-                self.cached_Xp4_ = self.cached_Xp3_ * X_new
+                self.cached_Xp2_ = Xp2
             pass # end if self.using_cache
 
             print 'gFM with diag-zero'
 
-            if self.using_cache:
-                self.data_moment3 = numpy.mean(n * (self.cached_Xp3_) * sample_weight.T, axis=1, keepdims=True)
-                self.data_moment4 = numpy.mean(n * (self.cached_Xp4_) * sample_weight.T, axis=1, keepdims=True)
-            else:
-                self.data_moment3 = numpy.mean(n * (X_new**3) * sample_weight.T, axis=1, keepdims=True)
-                self.data_moment4 = numpy.mean(n * (X_new**4) * sample_weight.T, axis=1, keepdims=True)
-            pass # end if self.using_cache
+            self.data_moment3 = numpy.mean(n * (Xp3) * sample_weight.T, axis=1, keepdims=True)
+            self.data_moment4 = numpy.mean(n * (Xp4) * sample_weight.T, axis=1, keepdims=True)
+
 
             U, _ = numpy.linalg.qr(numpy.random.randn(self.d, self.rank_k))
             self.U = U
@@ -178,7 +175,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             self.V = V
 
             # update w and b
-            hat_y = A_diag0(self.U,self,V,X)
+            hat_y = A_diag0(self.U,self.V, X)
             dy = y - hat_y
             dy = n * dy * sample_weight
             w = X.dot(dy) / n * self.learning_rate
@@ -186,7 +183,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             if self.learn_w:
                 self.w = w
             if self.learn_bias_term:
-                self.b = p0
+                self.b = p0*self.learning_rate
 
 
 
@@ -240,7 +237,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 w_new = X.dot(dy)/n * self.learning_rate + w
                 if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
 
-                b_new = numpy.mean(dy) + b
+                b_new = numpy.mean(dy)*self.learning_rate + b
 
                 if numpy.mean(numpy.abs(U-U_new))<self.tol and numpy.mean(numpy.abs(V-V_new))<self.tol and numpy.mean(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
                     U = U_new
@@ -315,36 +312,29 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             else:
                 self.data_std = numpy.ones((X.shape[0],1))
 
+            Xp2 = X_new ** 2
+            Xp3 = Xp2*X_new
+            Xp4 = Xp3 * X_new
             if self.using_cache:
-                self.cached_Xp2_ = X_new ** 2
-                self.cached_Xp3_ = self.cached_Xp2_ * X_new
-                self.cached_Xp4_ = self.cached_Xp3_ * X_new
-                self.cached_Xp5_ = self.cached_Xp4_ * X_new
+                self.cached_Xp2_ = Xp2
             # end if self.using_cache
 
             print 'gFM using solver %s' %(self.solver_algorithm)
             if self.solver_algorithm == 'NIPS2016':
                 self.data_moment3 = numpy.zeros(self.data_mean.shape)
                 self.data_moment4 = numpy.zeros(self.data_mean.shape) + 3
-                self.data_moment5 = numpy.zeros(self.data_mean.shape)
             else:
-                if self.using_cache:
-                    self.data_moment3 = numpy.mean(n * (self.cached_Xp3_) * sample_weight.T, axis=1, keepdims=True)
-                    self.data_moment4 = numpy.mean(n * (self.cached_Xp4_) * sample_weight.T, axis=1, keepdims=True)
-                    self.data_moment5 = numpy.mean(n * (self.cached_Xp5_) * sample_weight.T, axis=1, keepdims=True)
-                else:
-                    self.data_moment3 = numpy.mean(n * (X_new**3) * sample_weight.T, axis=1, keepdims=True)
-                    self.data_moment4 = numpy.mean(n * (X_new**4) * sample_weight.T, axis=1, keepdims=True)
-                    self.data_moment5 = numpy.mean(n * (X_new**5) * sample_weight.T, axis=1, keepdims=True)
+                self.data_moment3 = numpy.mean(n * Xp3 * sample_weight.T, axis=1, keepdims=True)
+                self.data_moment4 = numpy.mean(n * Xp4 * sample_weight.T, axis=1, keepdims=True)
                 # end if self.using_cache
             # end if self.solver_algorithm == 'NIPS2016':
-            tmp_A = numpy.zeros((2, 3, self.d))
+            tmp_A = numpy.zeros((2, 2, self.d))
             tmp_A[0, 0, :] = 1
             tmp_A[0, 1, :] = self.data_moment3.ravel()
-            tmp_A[0, 2, :] = self.data_moment4.ravel()
+            # tmp_A[0, 2, :] = self.data_moment4.ravel()
             tmp_A[1, 0, :] = self.data_moment3.ravel()
             tmp_A[1, 1, :] = self.data_moment4.ravel() - 1
-            tmp_A[1, 2, :] = self.data_moment5.ravel() - self.data_moment3.ravel()
+            # tmp_A[1, 2, :] = self.data_moment5.ravel() - self.data_moment3.ravel()
 
             tmp_b = numpy.zeros((2, 1, self.d))
             tmp_b[0, 0, :] = self.data_moment3.ravel()
@@ -354,8 +344,8 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             tmp_bw[0, 0, :] = 1
             tmp_bw[1, 0, :] = 0
 
-            self.Z = numpy.zeros((self.d, 3))
-            self.G = numpy.zeros((self.d, 3))
+            self.Z = numpy.zeros((self.d, 2))
+            self.G = numpy.zeros((self.d, 2))
             sv_record = numpy.zeros((self.d,))
             for i in xrange(self.d):
                 tmpu_u, tmp_s, tmp_v = numpy.linalg.svd(tmp_A[:, :, i], full_matrices=False)
@@ -385,16 +375,12 @@ class BatchRegression(BaseEstimator, RegressorMixin):
 
         if self.using_cache:
             Xp2 = self.cached_Xp2_
-            Xp3 = self.cached_Xp3_
         else:
             Xp2 = X**2
-            Xp3 = Xp2*X
 
         p0 = numpy.sum(y)
         p1 = X.dot(y)
         p2 = Xp2.dot(y)
-        p3 = Xp3.dot(y)
-
 
         if self.is_init_stage_:
             if n_more_iter is None:
@@ -404,7 +390,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             ite_count = 0
             for t in xrange(the_num_iter):
                 ite_count += 1
-                U_new = mathcal_M_(n * y * sample_weight, self.U, X, self.data_moment3, self.Z,p0,p1,p2,p3) / (2 * n)
+                U_new = mathcal_M_(n * y * sample_weight, self.U, X,  self.Z,p0,p1,p2,) / (2 * n)
                 U_new,_ = numpy.linalg.qr(U_new)
                 if numpy.mean(numpy.abs(self.U-U_new)) < self.init_tol:
                     self.is_init_stage_ = False
@@ -418,20 +404,17 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             if not n_more_iter is None: n_more_iter -= ite_count
 
             # update V
-            V = mathcal_M_(n * y * sample_weight, self.U, X, self.data_moment3, self.Z,p0,p1,p2,p3) / (2 * n) * self.learning_rate
+            V = mathcal_M_(n * y * sample_weight, self.U, X, self.Z,p0,p1,p2) / (2 * n) * self.learning_rate
             if numpy.linalg.norm(V) > self.lambda_M: V = V / numpy.linalg.norm(V) * self.lambda_M
             self.V = V
 
             # update w and b
-            hat_y = A_(X, self.U, V)
-            dy = y - hat_y
-            dy = n * dy * sample_weight
-            w = mathcal_W_(dy, X, self.data_moment3, self.G,p0,p1,p2,p3) / n * self.learning_rate
-            if numpy.linalg.norm(w) > self.lambda_w: w_new = w / numpy.linalg.norm(w) * self.lambda_w
+            w_new = mathcal_W_(self.G,p0,p1,p2) / n * self.learning_rate
+            if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
             if self.learn_w:
-                self.w = w
+                self.w = w_new
             if self.learn_bias_term:
-                b = numpy.mean(y) - numpy.sum(self.U*self.V)
+                b = (numpy.mean(y) - numpy.sum(self.U*self.V))*self.learning_rate
                 self.b = b
 
 
@@ -463,16 +446,15 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 p0 = numpy.sum(dy)
                 p1 = X.dot(dy)
                 p2 = Xp2.dot(dy)
-                p3 = Xp3.dot(dy)
 
                 # update U
-                U_new = mathcal_M_(dy, U, X, self.data_moment3, self.Z, p0, p1, p2, p3) / (2 * n) * self.learning_rate + \
+                U_new = mathcal_M_(dy, U, X, self.Z, p0, p1, p2) / (2 * n) * self.learning_rate + \
                         U.dot(V.T.dot(U)) / 2 + V.dot(U.T.dot(U)) / 2
                 # V_new = U_new
                 U_new, _ = numpy.linalg.qr(U_new)
 
                 # update V
-                V_new = mathcal_M_(dy, U_new, X, self.data_moment3, self.G, p0, p1, p2, p3) / (2 * n) * self.learning_rate + \
+                V_new = mathcal_M_(dy, U_new, X, self.G, p0, p1, p2) / (2 * n) * self.learning_rate + \
                         U.dot(V.T.dot(U_new)) / 2 + V.dot(U.T.dot(U_new)) / 2
                 if numpy.linalg.norm(V_new) > self.lambda_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambda_M
 
@@ -483,12 +465,11 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 p0 = numpy.sum(dy)
                 p1 = X.dot(dy)
                 p2 = Xp2.dot(dy)
-                p3 = Xp3.dot(dy)
 
-                w_new = mathcal_W_(dy, X, self.data_moment3, self.G,p0,p1,p2,p3) / n * self.learning_rate + w
+                w_new = mathcal_W_(self.G,p0,p1,p2) / n * self.learning_rate + w
                 if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
 
-                b_new = numpy.mean(y) - numpy.sum(U_new * V_new)
+                b_new = numpy.mean(dy)*self.learning_rate + b
 
                 if numpy.mean(numpy.abs(U-U_new))<self.tol and numpy.mean(numpy.abs(V-V_new))<self.tol and numpy.mean(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
                     U = U_new
@@ -525,9 +506,15 @@ class BatchRegression(BaseEstimator, RegressorMixin):
         :param X: $n \times d$.
         :return: The decision values of X, $n \times 1$ vector
         """
-        X = X.T
-        X = (X - self.data_mean) / self.data_std
-        the_decision_values = A_(X,self.U,self.V) + X.T.dot(self.w) + self.b
+        if not self.diag_zero:
+            X = X.T
+            X = (X - self.data_mean) / self.data_std
+            the_decision_values = A_(X,self.U,self.V) + X.T.dot(self.w) + self.b
+        else:
+            X = X.T
+            X = (X - self.data_mean) / self.data_std
+            the_decision_values = A_diag0(self.U,self.V,X) + X.T.dot(self.w) + self.b
+        pass # end if
         return the_decision_values.flatten()
 
     def predict(self,X):
@@ -540,7 +527,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
         return self.decision_function(X)
 pass # end class
 
-def mathcal_W_(y,X, data_moment3, G,p0,p1,p2,p3):
+def mathcal_W_(G,p0,p1,p2):
     # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> numpy.ndarray
     """
     Return $\mathcal{W}(y)*n given the constant parameters. X should be zero-mean unit-variance
@@ -550,12 +537,12 @@ def mathcal_W_(y,X, data_moment3, G,p0,p1,p2,p3):
     # p2 = (X**2).dot(y)
     # p3 = (X**3).dot(y)
 
-    return G[:,0,numpy.newaxis]*p1 + G[:,1,numpy.newaxis]*(p2-p0) + G[:,2,numpy.newaxis]*( p3 - data_moment3*p0 )
-    # return G[:, 0, numpy.newaxis] * p1 + G[:, 1, numpy.newaxis] * (p2 - p0)
+    # return G[:,0,numpy.newaxis]*p1 + G[:,1,numpy.newaxis]*(p2-p0) + G[:,2,numpy.newaxis]*( p3 - data_moment3*p0 )
+    return G[:, 0, numpy.newaxis] * p1 + G[:, 1, numpy.newaxis] * (p2 - p0)
 
 # end def
 
-def mathcal_M_(y,U,X,data_moment3, Z,p0,p1,p2,p3):
+def mathcal_M_(y,U,X,Z,p0,p1,p2):
     # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray) -> numpy.ndarray
     """
     Return $\mathcal{M}(y)U*2n, given the constant parameters. X should be zero-mean unit-variance
@@ -567,8 +554,8 @@ def mathcal_M_(y,U,X,data_moment3, Z,p0,p1,p2,p3):
     # p3 = (X**3).dot(y)
 
     term1 = (X*y.T).dot(X.T.dot(U))
-    term2 = p0+ Z[:,0,numpy.newaxis]*p1 + Z[:,1,numpy.newaxis]*(p2-p0) + Z[:,2,numpy.newaxis]*( p3 - data_moment3*p0)
-    # term2 = p0+ Z[:, 0, numpy.newaxis] * p1 + Z[:, 1, numpy.newaxis] * (p2 - p0)
+    # term2 = p0+ Z[:,0,numpy.newaxis]*p1 + Z[:,1,numpy.newaxis]*(p2-p0) + Z[:,2,numpy.newaxis]*( p3 - data_moment3*p0)
+    term2 = p0+ Z[:, 0, numpy.newaxis] * p1 + Z[:, 1, numpy.newaxis] * (p2 - p0)
     return term1 - term2*U
 # end def
 
@@ -620,13 +607,13 @@ pass # end def
 def A_diag0(U, V, X):
     # type: (numpy.ndarray, numpy.ndarray, numpy.ndarray,) -> numpy.ndarray
     """
-    return A(UV' - diag(UV')) = (X'U * X'V) 1 - X'(((U*V)1)*X)
+    return A(UV' - diag(UV')) = (X'U * X'V) 1 - (X*(((U*V)1)*X))1
     :param U:
     :param V:
     :param X:
     :return:
     """
     z = numpy.sum(X.T.dot(U) * X.T.dot(V), axis=1, keepdims=True)
-    z_diag = X.T.dot(numpy.sum(U*V,axis=1,keepdims=True)*X)
+    z_diag = numpy.sum(X*(numpy.sum(U*V,axis=1,keepdims=True)*X), axis=0, keepdims=True).T
     return z-z_diag
 pass # end def
