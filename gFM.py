@@ -164,7 +164,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                     print 'early stop in initialzation'
                     break
                 # end if numpy.mean(numpy.abs(self.U-U_new)) < self.init_tol:
-                U = U_new
+                self.U = U_new
             # end for ite_count in xrange(n_more_iter):
             self.remaining_init_iter_steps_ -= ite_count
             if not n_more_iter is None: n_more_iter -= ite_count
@@ -178,12 +178,17 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             hat_y = A_diag0(self.U,self.V, X)
             dy = y - hat_y
             dy = n * dy * sample_weight
-            w = X.dot(dy) / n * self.learning_rate
+            p0 = numpy.sum(dy)
+            p1 = X.dot(dy)
+
+            w = p1 / n * self.learning_rate + self.w
             if numpy.linalg.norm(w) > self.lambda_w: w_new = w / numpy.linalg.norm(w) * self.lambda_w
+
+            b_new = p0/n * self.learning_rate + self.b
             if self.learn_w:
                 self.w = w
             if self.learn_bias_term:
-                self.b = p0*self.learning_rate
+                self.b = b_new
 
 
 
@@ -216,13 +221,13 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 cache_1 = self.data_moment3 * p1 + self.data_moment4 * p0
 
                 # update U
-                U_new = (ApA_diag0(y,U,X) - cache_1*U)/(2 * n) * self.learning_rate + \
+                U_new = (ApA_diag0(dy,U,X) - cache_1*U)/(2 * n) * self.learning_rate + \
                         U.dot(V.T.dot(U)) / 2 + V.dot(U.T.dot(U)) / 2
                 # V_new = U_new
                 U_new, _ = numpy.linalg.qr(U_new)
 
                 # update V
-                V_new = (ApA_diag0(y,U_new,X) - cache_1*U_new) / (2 * n) * self.learning_rate + \
+                V_new = (ApA_diag0(dy,U_new,X) - cache_1*U_new) / (2 * n) * self.learning_rate + \
                         U.dot(V.T.dot(U_new)) / 2 + V.dot(U.T.dot(U_new)) / 2
                 if numpy.linalg.norm(V_new) > self.lambda_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambda_M
 
@@ -234,10 +239,10 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 p1 = X.dot(dy)
                 cache_1 = self.data_moment3 * p1 + self.data_moment4 * p0
 
-                w_new = X.dot(dy)/n * self.learning_rate + w
+                w_new = p1/n * self.learning_rate + w
                 if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
 
-                b_new = numpy.mean(dy)*self.learning_rate + b
+                b_new = p0/n*self.learning_rate + b
 
                 if numpy.mean(numpy.abs(U-U_new))<self.tol and numpy.mean(numpy.abs(V-V_new))<self.tol and numpy.mean(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
                     U = U_new
