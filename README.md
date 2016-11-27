@@ -1,6 +1,6 @@
 # gFM: A toolbox for generalized Factorization Machine on Terabyte Data #
 
-The gFM toolbox provides the-state-of-the-art solvers for the generalized Factorization Machine (gFM). The gFM toolbox is able to learning gFM model with tens of thousands of dimensions on Terabyte datasets. The gFM toolbox can run on multiple CPUs or GPUs simultaneously. The gFM toolbox is very fast and has provable guarantees. gFM is compatible to sklearn API.
+The gFM toolbox provides the-state-of-the-art solvers for the generalized Factorization Machine (gFM). The gFM toolbox is able to learning gFM model with tens of thousands of dimensions on Terabyte datasets. The gFM toolbox is very fast and has provable guarantees. gFM is compatible to sklearn API. gFM is still under active development. In the future, the gFM toolbox aims to run on multiple CPUs and GPUs.
 
 gFM is available at
 
@@ -25,7 +25,7 @@ Why another Factorization Machine library?
 
 There are libfm and several python wrappers such as pywFM, pyFM or fastFM. However, the algorithms implemented in these packages might converge to local minima or saddle point.  Numerical experiments suggest that with very high probability these algorithms cannot converge to the global optimal solution.
 
-The algorithm implemented in gFM is provably convergent to global optimal solution. The convergence rate is linear (geometrical). In addition, gFM implements a generalized version of Factorization Machine. The second order feature interaction coefficient matrix in gFM doesn't need to be semi-positive definite therefore is more powerful than conventional Factorization Machine.
+The algorithm implemented in gFM is provably convergent to global optimal solution. The convergence rate is linear /geometrical. In addition, gFM implements a generalized version of Factorization Machine. The second order feature interaction coefficient matrix in gFM doesn't need to be semi-positive definite therefore is more powerful than conventional Factorization Machine models.
 
 
 Installation
