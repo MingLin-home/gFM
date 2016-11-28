@@ -116,7 +116,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
 
             Xp2 = X_new ** 2
             Xp3 = Xp2 * X_new
-            Xp4 = Xp3 * X_new
+
             if self.using_cache:
                 self.cached_Xp2_ = Xp2
             pass # end if self.using_cache
@@ -124,7 +124,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             print 'gFM with diag-zero'
 
             self.data_moment3 = numpy.mean(n * (Xp3) * sample_weight.T, axis=1, keepdims=True)
-            self.data_moment4 = numpy.mean(n * (Xp4) * sample_weight.T, axis=1, keepdims=True)
+            self.data_moment4 = None
 
 
             U, _ = numpy.linalg.qr(numpy.random.randn(self.d, self.rank_k))
@@ -153,7 +153,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             U = self.U
             p0 = numpy.sum(y)
             p1 = X.dot(y)
-            cache_1 = self.data_moment3*p1 + self.data_moment4*p0
+            cache_1 = self.data_moment3*p1 + p0
             for t in xrange(the_num_iter):
                 ite_count += 1
                 U_new = (ApA_diag0(y,U,X) - cache_1*U)/(2*n)
@@ -170,23 +170,17 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             if not n_more_iter is None: n_more_iter -= ite_count
 
             # update V
-            V = (ApA_diag0(y,self.U,X) - cache_1*self.U)/(2*n) * self.learning_rate
-            if numpy.linalg.norm(V) > self.lambda_M: V = V / numpy.linalg.norm(V) * self.lambda_M
-            self.V = V
+            V_new = (ApA_diag0(y,self.U,X) - cache_1*self.U)/(2*n) * self.learning_rate
+            if numpy.linalg.norm(V_new) > self.lambda_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambda_M
+            self.V = V_new
 
             # update w and b
-            hat_y = A_diag0(self.U,self.V, X)
-            dy = y - hat_y
-            dy = n * dy * sample_weight
-            p0 = numpy.sum(dy)
-            p1 = X.dot(dy)
+            w_new = p1 / n * self.learning_rate
+            if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
 
-            w = p1 / n * self.learning_rate + self.w
-            if numpy.linalg.norm(w) > self.lambda_w: w_new = w / numpy.linalg.norm(w) * self.lambda_w
-
-            b_new = p0/n * self.learning_rate + self.b
+            b_new = p0/n * self.learning_rate
             if self.learn_w:
-                self.w = w
+                self.w = w_new
             if self.learn_bias_term:
                 self.b = b_new
 
@@ -218,7 +212,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 dy = n * dy * sample_weight
                 p0 = numpy.sum(dy)
                 p1 = X.dot(dy)
-                cache_1 = self.data_moment3 * p1 + self.data_moment4 * p0
+                cache_1 = self.data_moment3 * p1 + p0
 
                 # update U
                 U_new = (ApA_diag0(dy,U,X) - cache_1*U)/(2 * n) * self.learning_rate + \
@@ -232,12 +226,11 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 if numpy.linalg.norm(V_new) > self.lambda_M: V_new = V_new / numpy.linalg.norm(V_new) * self.lambda_M
 
                 # update w and b
-                hat_y = A_diag0(U, V, X) + X.T.dot(w) + b
+                hat_y = A_diag0(U_new, V_new, X) + X.T.dot(w) + b
                 dy = y - hat_y
                 dy = n * dy * sample_weight
                 p0 = numpy.sum(dy)
                 p1 = X.dot(dy)
-                cache_1 = self.data_moment3 * p1 + self.data_moment4 * p0
 
                 w_new = p1/n * self.learning_rate + w
                 if numpy.linalg.norm(w_new) > self.lambda_w: w_new = w_new / numpy.linalg.norm(w_new) * self.lambda_w
