@@ -157,12 +157,12 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 ite_count += 1
                 U_new = (ApA_diag0(y,self.U,X) - cache_1*self.U)/(2*n)
                 U_new,_ = numpy.linalg.qr(U_new)
-                if numpy.max(numpy.abs(self.U-U_new)) < self.init_tol:
+                if numpy.sum(numpy.abs(self.U-U_new)) < self.init_tol:
                     self.is_init_stage_ = False
                     self.U = U_new
                     print 'early stop in initialzation'
                     break
-                # end if numpy.mean(numpy.abs(self.U-U_new)) < self.init_tol:
+                # end if numpy.sum(numpy.abs(self.U-U_new)) < self.init_tol:
                 self.U = U_new
             # end for ite_count in xrange(n_more_iter):
             self.remaining_init_iter_steps_ -= ite_count
@@ -236,7 +236,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
 
                 b_new = p0/n*self.learning_rate + b
 
-                if numpy.max(numpy.abs(U-U_new))<self.tol and numpy.max(numpy.abs(V-V_new))<self.tol and numpy.max(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
+                if numpy.sum(numpy.abs(U-U_new))<self.tol and numpy.sum(numpy.abs(V-V_new))<self.tol and numpy.sum(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
                     U = U_new
                     V = V_new
                     if self.learn_w:
@@ -389,12 +389,12 @@ class BatchRegression(BaseEstimator, RegressorMixin):
                 ite_count += 1
                 U_new = mathcal_M_(n * y * sample_weight, self.U, X,  self.Z,p0,p1,p2,) / (2 * n)
                 U_new,_ = numpy.linalg.qr(U_new)
-                if numpy.mean(numpy.abs(self.U-U_new)) < self.init_tol:
+                if numpy.sum(numpy.abs(self.U-U_new)) < self.init_tol:
                     self.is_init_stage_ = False
                     self.U = U_new
                     print 'early stop in initialzation'
                     break
-                # end if numpy.mean(numpy.abs(self.U-U_new)) < self.init_tol:
+                # end if numpy.sum(numpy.abs(self.U-U_new)) < self.init_tol:
                 self.U = U_new
             # end for ite_count in xrange(n_more_iter):
             self.remaining_init_iter_steps_ -= ite_count
@@ -468,7 +468,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
 
                 b_new = numpy.mean(dy)*self.learning_rate + b
 
-                if numpy.mean(numpy.abs(U-U_new))<self.tol and numpy.mean(numpy.abs(V-V_new))<self.tol and numpy.mean(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
+                if numpy.sum(numpy.abs(U-U_new))<self.tol and numpy.sum(numpy.abs(V-V_new))<self.tol and numpy.sum(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
                     U = U_new
                     V = V_new
                     if self.learn_w:
@@ -496,32 +496,31 @@ class BatchRegression(BaseEstimator, RegressorMixin):
         return self
     # end def
 
-    def decision_function(self,X):
+    def decision_function(self,X,X_is_zscore_normalized=False):
         # type: (numpy.ndarray) -> numpy.ndarray
         """
         Compute the decision values $s$ of X such that $\sign{s}$ is the predicted labels of X
         :param X: $n \times d$.
         :return: The decision values of X, $n \times 1$ vector
         """
-        if not self.diag_zero:
-            X = X.T
+        X = X.T
+        if not X_is_zscore_normalized:
             X = (X - self.data_mean) / self.data_std
+        if not self.diag_zero:
             the_decision_values = A_(X,self.U,self.V) + X.T.dot(self.w) + self.b
         else:
-            X = X.T
-            X = (X - self.data_mean) / self.data_std
             the_decision_values = A_diag0(self.U,self.V,X) + X.T.dot(self.w) + self.b
         pass # end if
         return the_decision_values.flatten()
 
-    def predict(self,X):
+    def predict(self,X, X_is_zscore_normalized=False):
         # type: (numpy.ndarray) -> numpy.ndarray
         """
         Predict the labels of X
         :param X: $n \times d$ feature matrix.
         :return: The predicted labels
         """
-        return self.decision_function(X)
+        return self.decision_function(X, X_is_zscore_normalized)
 pass # end class
 
 def mathcal_W_(G,p0,p1,p2):
