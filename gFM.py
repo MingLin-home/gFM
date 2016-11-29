@@ -150,15 +150,14 @@ class BatchRegression(BaseEstimator, RegressorMixin):
             else:
                 the_num_iter = n_more_iter
             ite_count = 0
-            U = self.U
             p0 = numpy.sum(y)
             p1 = X.dot(y)
             cache_1 = self.data_moment3*p1 + p0
             for t in xrange(the_num_iter):
                 ite_count += 1
-                U_new = (ApA_diag0(y,U,X) - cache_1*U)/(2*n)
+                U_new = (ApA_diag0(y,self.U,X) - cache_1*self.U)/(2*n)
                 U_new,_ = numpy.linalg.qr(U_new)
-                if numpy.mean(numpy.abs(self.U-U_new)) < self.init_tol:
+                if numpy.max(numpy.abs(self.U-U_new)) < self.init_tol:
                     self.is_init_stage_ = False
                     self.U = U_new
                     print 'early stop in initialzation'
@@ -237,7 +236,7 @@ class BatchRegression(BaseEstimator, RegressorMixin):
 
                 b_new = p0/n*self.learning_rate + b
 
-                if numpy.mean(numpy.abs(U-U_new))<self.tol and numpy.mean(numpy.abs(V-V_new))<self.tol and numpy.mean(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
+                if numpy.max(numpy.abs(U-U_new))<self.tol and numpy.max(numpy.abs(V-V_new))<self.tol and numpy.max(numpy.abs(w-w_new))<self.tol and numpy.abs(b-b_new)<self.tol:
                     U = U_new
                     V = V_new
                     if self.learn_w:
